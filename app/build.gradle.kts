@@ -6,7 +6,7 @@ plugins {
 
 // Số phiên bản: CI truyền vào qua biến môi trường (số lần chạy GitHub Actions).
 val buildNumber = (System.getenv("BUILD_NUMBER") ?: "1").toInt()
-val appVersionName = System.getenv("VERSION_NAME") ?: "1.0.$buildNumber"
+val appVersionName = System.getenv("VERSION_NAME") ?: "2.0.$buildNumber"
 
 // Repo GitHub dùng để kiểm tra bản cập nhật (Releases).
 val updateRepo = System.getenv("UPDATE_REPO") ?: "luzart-otherthing/youtube-remove-ads"
@@ -85,7 +85,7 @@ android {
                 test.systemProperty("roborazzi.test.record", "true")
                 test.systemProperty("screenshots", System.getProperty("screenshots") ?: "false")
                 test.systemProperty("online", System.getProperty("online") ?: "false")
-                System.getProperty("videoUrl")?.let { test.systemProperty("videoUrl", it) }
+                System.getProperty("videoId")?.let { test.systemProperty("videoId", it) }
                 test.testLogging.showStandardStreams = true
                 System.getenv("ROBOLECTRIC_REPO")?.let {
                     test.systemProperty("robolectric.dependency.repo.url", it)

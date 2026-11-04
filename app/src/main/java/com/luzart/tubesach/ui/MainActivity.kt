@@ -26,21 +26,39 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.annotation.RequiresApi
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
+import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccountCircle
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Subscriptions
+import androidx.compose.material.icons.outlined.AccountCircle
+import androidx.compose.material.icons.outlined.Home
+import androidx.compose.material.icons.outlined.Subscriptions
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.core.app.PictureInPictureModeChangedInfo
 import androidx.core.content.ContextCompat
 import androidx.core.util.Consumer
@@ -52,15 +70,22 @@ import androidx.lifecycle.lifecycleScope
 import com.luzart.tubesach.R
 import com.luzart.tubesach.data.VideoItem
 import com.luzart.tubesach.player.PlaybackController
-import com.luzart.tubesach.ui.components.MiniPlayer
-import com.luzart.tubesach.ui.screens.FavoritesScreen
-import com.luzart.tubesach.ui.screens.HistoryScreen
+import com.luzart.tubesach.ui.components.ShortsFilled
+import com.luzart.tubesach.ui.components.ShortsOutlined
+import com.luzart.tubesach.ui.player.MiniPlayerBar
+import com.luzart.tubesach.ui.player.rememberPlayerUiState
+import com.luzart.tubesach.ui.screens.ChannelScreen
 import com.luzart.tubesach.ui.screens.HomeScreen
-import com.luzart.tubesach.ui.screens.PlayerScreen
 import com.luzart.tubesach.ui.screens.ResultsScreen
 import com.luzart.tubesach.ui.screens.SearchInputScreen
 import com.luzart.tubesach.ui.screens.SettingsScreen
-import com.luzart.tubesach.ui.theme.TubeSachTheme
+import com.luzart.tubesach.ui.screens.ShortsScreen
+import com.luzart.tubesach.ui.screens.SubscriptionsScreen
+import com.luzart.tubesach.ui.screens.VideoListScreen
+import com.luzart.tubesach.ui.screens.WatchScreen
+import com.luzart.tubesach.ui.screens.YouScreen
+import com.luzart.tubesach.ui.theme.LocalYt
+import com.luzart.tubesach.ui.theme.TubeTheme
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 
@@ -77,7 +102,7 @@ class MainActivity : ComponentActivity() {
     private val pipListener = Consumer<PictureInPictureModeChangedInfo> { info ->
         inPip = info.isInPictureInPictureMode
         if (!inPip && lifecycle.currentState == Lifecycle.State.CREATED) {
-            // Người dùng bấm nút X để đóng cửa sổ nhỏ → dừng video.
+            // Bấm X để đóng cửa sổ nhỏ → dừng video.
             PlaybackController.pause()
         }
     }
@@ -98,12 +123,7 @@ class MainActivity : ComponentActivity() {
         requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_USER_PORTRAIT
 
         addOnPictureInPictureModeChangedListener(pipListener)
-        ContextCompat.registerReceiver(
-            this,
-            pipReceiver,
-            IntentFilter(ACTION_PIP_CONTROL),
-            ContextCompat.RECEIVER_NOT_EXPORTED,
-        )
+        ContextCompat.registerReceiver(this, pipReceiver, IntentFilter(ACTION_PIP_CONTROL), ContextCompat.RECEIVER_NOT_EXPORTED)
 
         if (savedInstanceState == null) {
             handleIntent(intent)
@@ -112,98 +132,44 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             val settings by vm.store.settings.collectAsState()
-            TubeSachTheme(textScale = settings.textScale) {
-                Surface(color = MaterialTheme.colorScheme.background) {
-                    AppRoot()
+            TubeTheme(settings.theme, settings.textScale) {
+                val yt = LocalYt.current
+                val darkBars = yt.isDark || vm.watchExpanded || vm.tab == Tab.SHORTS
+                LaunchedEffect(darkBars) {
+                    WindowCompat.getInsetsController(window, window.decorView).apply {
+                        isAppearanceLightStatusBars = !darkBars
+                        isAppearanceLightNavigationBars = !yt.isDark
+                    }
                 }
+                LaunchedEffect(vm.fullscreen) { applyFullscreen(vm.fullscreen) }
+                val voiceLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+                    val text = result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()
+                    if (!text.isNullOrBlank()) vm.search(text)
+                }
+                TubeApp(
+                    vm = vm,
+                    inPip = inPip,
+                    pipSupported = pipSupported,
+                    onVoice = {
+                        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
+                            .putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                            .putExtra(RecognizerIntent.EXTRA_LANGUAGE, "vi-VN")
+                            .putExtra(RecognizerIntent.EXTRA_PROMPT, "Đang nghe...")
+                        try {
+                            voiceLauncher.launch(intent)
+                        } catch (_: ActivityNotFoundException) {
+                            Toast.makeText(this, "Thiết bị chưa hỗ trợ tìm kiếm bằng giọng nói", Toast.LENGTH_LONG).show()
+                        }
+                    },
+                    onOpenUrl = ::openUrl,
+                )
             }
         }
 
-        // Cập nhật nút trên cửa sổ nhỏ & chế độ tự thu nhỏ theo trạng thái phát.
         if (pipSupported) {
             lifecycleScope.launch {
-                combine(
-                    snapshotFlow { vm.top },
-                    PlaybackController.isPlaying,
-                    vm.store.settings,
-                ) { _, _, _ -> Unit }.collect { updatePipParams() }
-            }
-        }
-    }
-
-    @Composable
-    private fun AppRoot() {
-        val now by PlaybackController.nowPlaying.collectAsState()
-        val isPlaying by PlaybackController.isPlaying.collectAsState()
-        val loading by PlaybackController.loading.collectAsState()
-
-        val voiceLauncher = rememberLauncherForActivityResult(
-            ActivityResultContracts.StartActivityForResult(),
-        ) { result ->
-            val text = result.data
-                ?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
-                ?.firstOrNull()
-            if (!text.isNullOrBlank()) vm.search(text)
-        }
-        val startVoice: () -> Unit = {
-            val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
-                .putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                .putExtra(RecognizerIntent.EXTRA_LANGUAGE, "vi-VN")
-                .putExtra(RecognizerIntent.EXTRA_PROMPT, "Hãy nói tên video bạn muốn xem")
-            try {
-                voiceLauncher.launch(intent)
-            } catch (_: ActivityNotFoundException) {
-                Toast.makeText(this, "Máy này chưa hỗ trợ tìm bằng giọng nói", Toast.LENGTH_LONG).show()
-            }
-        }
-
-        BackHandler(enabled = vm.fullscreen || vm.stack.size > 1) {
-            if (vm.fullscreen) exitFullscreen() else vm.back()
-        }
-
-        val screen = vm.top
-        if (inPip) {
-            // Cửa sổ nhỏ: chỉ hiện video.
-            PlayerScreen(vm, inPip = true, pipSupported, {}, {}, {})
-            return
-        }
-
-        val showMini = now != null && screen != Screen.Player
-        Column(Modifier.fillMaxSize()) {
-            Box(
-                Modifier
-                    .weight(1f)
-                    .then(if (!showMini && screen != Screen.Player) Modifier.navigationBarsPadding() else Modifier),
-            ) {
-                val pad = PaddingValues(bottom = if (showMini) 8.dp else 24.dp)
-                when (screen) {
-                    Screen.Home -> HomeScreen(vm, startVoice, ::openUrl, pad)
-                    Screen.SearchInput -> SearchInputScreen(vm, startVoice)
-                    is Screen.Results -> ResultsScreen(vm, screen.query, pad)
-                    Screen.History -> HistoryScreen(vm, pad)
-                    Screen.Favorites -> FavoritesScreen(vm, pad)
-                    Screen.Settings -> SettingsScreen(vm, pipSupported, pad)
-                    Screen.Player -> PlayerScreen(
-                        vm,
-                        inPip = false,
-                        pipSupported = pipSupported,
-                        onEnterPip = ::enterPip,
-                        onEnterFullscreen = ::enterFullscreen,
-                        onExitFullscreen = ::exitFullscreen,
-                    )
-                }
-            }
-            now?.let { current ->
-                if (showMini) {
-                    MiniPlayer(
-                        now = current,
-                        isPlaying = isPlaying,
-                        loading = loading,
-                        onOpen = { vm.openPlayerScreen() },
-                        onPlayPause = { PlaybackController.togglePlayPause() },
-                        onClose = { PlaybackController.close() },
-                    )
-                }
+                combine(snapshotFlow { vm.watchExpanded }, PlaybackController.isPlaying, vm.store.settings) { _, _, _ -> Unit }
+                    .collect { updatePipParams() }
             }
         }
     }
@@ -218,7 +184,7 @@ class MainActivity : ComponentActivity() {
     private fun handleIntent(intent: Intent?) {
         intent ?: return
         when (intent.action) {
-            ACTION_OPEN_PLAYER -> vm.openPlayerScreen()
+            ACTION_OPEN_PLAYER -> vm.expandPlayer()
             Intent.ACTION_SEND -> openShared(intent.getStringExtra(Intent.EXTRA_TEXT))
             Intent.ACTION_VIEW -> openShared(intent.dataString)
         }
@@ -230,8 +196,9 @@ class MainActivity : ComponentActivity() {
             if (text != null) Toast.makeText(this, "Không tìm thấy link video YouTube", Toast.LENGTH_LONG).show()
             return
         }
-        exitFullscreen()
-        vm.openVideo(VideoItem(url = url, title = "Đang mở video…", uploader = "", thumbnail = null, durationSec = 0))
+        vm.fullscreen = false
+        val id = VideoItem.videoIdOf(url)!!
+        vm.openVideo(VideoItem.ofId(id))
     }
 
     private fun openUrl(url: String) {
@@ -244,42 +211,38 @@ class MainActivity : ComponentActivity() {
 
     // ---------------------------------------------------------------- Toàn màn hình
 
-    private fun enterFullscreen() {
-        vm.fullscreen = true
-        requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
-        WindowCompat.getInsetsController(window, window.decorView).apply {
-            systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-            hide(WindowInsetsCompat.Type.systemBars())
+    private fun applyFullscreen(on: Boolean) {
+        val controller = WindowCompat.getInsetsController(window, window.decorView)
+        if (on) {
+            requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+            controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            controller.hide(WindowInsetsCompat.Type.systemBars())
+        } else {
+            requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_USER_PORTRAIT
+            controller.show(WindowInsetsCompat.Type.systemBars())
         }
-    }
-
-    private fun exitFullscreen() {
-        if (!vm.fullscreen) return
-        vm.fullscreen = false
-        requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_USER_PORTRAIT
-        WindowCompat.getInsetsController(window, window.decorView)
-            .show(WindowInsetsCompat.Type.systemBars())
     }
 
     // ---------------------------------------------------------------- Hình trong hình
 
-    private fun shouldAutoPip(): Boolean =
-        pipSupported && vm.top == Screen.Player && PlaybackController.isPlaying.value &&
-            vm.store.settings.value.autoPip
+    private fun shouldAutoPip(): Boolean {
+        val now = PlaybackController.nowPlaying.value ?: return false
+        return pipSupported && !now.isShort && PlaybackController.isPlaying.value && vm.store.settings.value.autoPip
+    }
 
     private fun enterPip() {
         if (!pipSupported || Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         if (PlaybackController.nowPlaying.value == null) return
         try {
+            vm.watchExpanded = true
             enterPictureInPictureMode(buildPipParams())
         } catch (_: Exception) {
-            Toast.makeText(this, "Máy chưa cho phép cửa sổ nổi. Hãy bật trong Cài đặt của điện thoại.", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, "Hãy cho phép Hình trong hình trong cài đặt điện thoại", Toast.LENGTH_LONG).show()
         }
     }
 
     override fun onUserLeaveHint() {
         super.onUserLeaveHint()
-        // Android 8–11: tự vào chế độ cửa sổ nhỏ khi bấm Home lúc đang xem.
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S && shouldAutoPip()) enterPip()
     }
 
@@ -306,11 +269,9 @@ class MainActivity : ComponentActivity() {
             pipAction(R.drawable.ic_pip_rewind, "Lùi 10 giây", CONTROL_REWIND),
             if (playing) pipAction(R.drawable.ic_pip_pause, "Tạm dừng", CONTROL_PLAY_PAUSE)
             else pipAction(R.drawable.ic_pip_play, "Phát", CONTROL_PLAY_PAUSE),
-            pipAction(R.drawable.ic_pip_forward, "Tới 10 giây", CONTROL_FORWARD),
+            pipAction(R.drawable.ic_pip_forward, "Tua đi 10 giây", CONTROL_FORWARD),
         )
-        val builder = PictureInPictureParams.Builder()
-            .setAspectRatio(ratio)
-            .setActions(actions)
+        val builder = PictureInPictureParams.Builder().setAspectRatio(ratio).setActions(actions)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             builder.setAutoEnterEnabled(shouldAutoPip())
             builder.setSeamlessResizeEnabled(false)
@@ -320,15 +281,8 @@ class MainActivity : ComponentActivity() {
 
     @RequiresApi(Build.VERSION_CODES.O)
     private fun pipAction(icon: Int, title: String, control: Int): RemoteAction {
-        val intent = Intent(ACTION_PIP_CONTROL)
-            .setPackage(packageName)
-            .putExtra(EXTRA_CONTROL, control)
-        val pending = PendingIntent.getBroadcast(
-            this,
-            control,
-            intent,
-            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
-        )
+        val intent = Intent(ACTION_PIP_CONTROL).setPackage(packageName).putExtra(EXTRA_CONTROL, control)
+        val pending = PendingIntent.getBroadcast(this, control, intent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
         return RemoteAction(Icon.createWithResource(this, icon), title, title, pending)
     }
 

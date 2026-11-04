@@ -1,32 +1,32 @@
 package com.luzart.tubesach
 
 import android.os.Looper
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onRoot
 import androidx.test.core.app.ApplicationProvider
+import com.github.takahirom.roborazzi.ExperimentalRoborazziApi
 import com.github.takahirom.roborazzi.RoborazziOptions
 import com.github.takahirom.roborazzi.captureRoboImage
-import com.luzart.tubesach.data.VideoItem
-import com.luzart.tubesach.data.YouTubeRepository
+import com.github.takahirom.roborazzi.captureScreenRoboImage
+import com.luzart.tubesach.data.ChannelRef
+import com.luzart.tubesach.data.CommentItem
+import com.luzart.tubesach.data.FeedEntry
+import com.luzart.tubesach.data.ThemeMode
+import com.luzart.tubesach.innertube.Parser
+import com.luzart.tubesach.innertube.PlayerData
 import com.luzart.tubesach.player.NowPlaying
 import com.luzart.tubesach.player.PlaybackController
+import com.luzart.tubesach.sponsor.Segment
 import com.luzart.tubesach.ui.AppViewModel
-import com.luzart.tubesach.ui.ResultsState
-import com.luzart.tubesach.ui.components.MiniPlayer
-import com.luzart.tubesach.ui.screens.HomeScreen
-import com.luzart.tubesach.ui.screens.PlayerScreen
-import com.luzart.tubesach.ui.screens.ResultsScreen
-import com.luzart.tubesach.ui.screens.SearchInputScreen
-import com.luzart.tubesach.ui.screens.SettingsScreen
-import com.luzart.tubesach.ui.theme.TubeSachTheme
-import kotlinx.coroutines.runBlocking
+import com.luzart.tubesach.ui.CommentsState
+import com.luzart.tubesach.ui.FeedState
+import com.luzart.tubesach.ui.Screen
+import com.luzart.tubesach.ui.Tab
+import com.luzart.tubesach.ui.TubeApp
+import com.luzart.tubesach.ui.theme.TubeTheme
+import org.json.JSONObject
+import org.junit.After
 import org.junit.Assume.assumeTrue
 import org.junit.Before
 import org.junit.Rule
@@ -36,12 +36,14 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
+import java.util.zip.GZIPInputStream
 
 /**
- * Chụp ảnh các màn hình chính (chạy trên JVM bằng Robolectric, không cần điện thoại).
+ * Chụp ảnh các màn hình (chạy trên JVM bằng Robolectric, dữ liệu YouTube thật đã lưu sẵn).
  * Chạy: ./gradlew :app:testDebugUnitTest -Dscreenshots=true --tests '*ScreenshotTest*'
  * Ảnh nằm ở app/build/outputs/roborazzi/.
  */
+@OptIn(ExperimentalRoborazziApi::class)
 @RunWith(RobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(sdk = [35], qualifiers = "w392dp-h850dp-xxhdpi")
@@ -57,91 +59,152 @@ class ScreenshotTest {
         assumeTrue(System.getProperty("screenshots") == "true")
     }
 
-    private fun sampleVideos(query: String): List<VideoItem> = runCatching {
-        runBlocking { YouTubeRepository.search(query).first }
-    }.getOrNull()?.takeIf { it.isNotEmpty() } ?: List(8) {
-        VideoItem(
-            url = "https://www.youtube.com/watch?v=dQw4w9WgXc$it",
-            title = "Video mẫu số ${it + 1} – tiêu đề dài để xem chữ xuống dòng thế nào",
-            uploader = "Kênh mẫu",
-            thumbnail = null,
-            durationSec = 600L + it * 125,
-            viewCount = 12_345L * (it + 1),
-            uploadedText = "${it + 1} ngày trước",
-        )
+    @After
+    fun tearDown() {
+        PlaybackController.showForPreview(null)
     }
 
-    private fun shot(name: String, content: @Composable () -> Unit) {
-        compose.setContent {
-            TubeSachTheme(textScale = 1f) {
-                Surface(color = MaterialTheme.colorScheme.background) { content() }
-            }
-        }
-        // Chờ ảnh thu nhỏ tải xong (nếu có mạng).
-        repeat(24) {
-            Thread.sleep(250)
+    private fun fixture(name: String): JSONObject {
+        val stream = javaClass.classLoader!!.getResourceAsStream("fixtures/$name.json.gz")
+        return JSONObject(GZIPInputStream(stream).bufferedReader().readText())
+    }
+
+    private val homePage by lazy { Parser.browseGrid(fixture("home")) }
+    private val watch by lazy { Parser.watch(fixture("next"), "fbiZrIlPNx8") }
+    private val player by lazy { PlayerData.parse(fixture("player"), "dQw4w9WgXcQ") }
+
+    private fun settle() {
+        repeat(16) {
+            Thread.sleep(150)
             shadowOf(Looper.getMainLooper()).idle()
             compose.waitForIdle()
         }
-        compose.onRoot().captureRoboImage(
-            "build/outputs/roborazzi/$name.png",
-            roborazziOptions = RoborazziOptions(
-                recordOptions = RoborazziOptions.RecordOptions(resizeScale = 0.5),
-            ),
-        )
+    }
+
+    private val opts = RoborazziOptions(recordOptions = RoborazziOptions.RecordOptions(resizeScale = 0.5))
+
+    private fun shot(name: String, dark: Boolean = false, screen: Boolean = false, content: @Composable () -> Unit) {
+        app.store.updateSettings { it.copy(theme = if (dark) ThemeMode.DARK else ThemeMode.LIGHT) }
+        compose.setContent { TubeTheme(if (dark) ThemeMode.DARK else ThemeMode.LIGHT, 1f) { content() } }
+        settle()
+        if (screen) captureScreenRoboImage("build/outputs/roborazzi/$name.png", opts)
+        else compose.onRoot().captureRoboImage("build/outputs/roborazzi/$name.png", roborazziOptions = opts)
+    }
+
+    private fun app(vm: AppViewModel) = @Composable { TubeApp(vm, inPip = false, pipSupported = true, onVoice = {}, onOpenUrl = {}) }
+
+    private fun vmWithHome(): AppViewModel = AppViewModel(app).also {
+        it.previewHome(FeedState(entries = homePage.entries, chips = homePage.chips, loaded = true))
+    }
+
+    private fun nowPlaying() = NowPlaying(
+        video = homePage.entries.filterIsInstance<FeedEntry.Video>().first().video.copy(title = watch.title, uploader = watch.channel!!.name),
+        watch = watch,
+        related = watch.related,
+        captions = player.captions,
+        availableHeights = player.availableHeights,
+    )
+
+    @Test
+    fun home() = shot("01_trang_chu", content = app(vmWithHome()))
+
+    @Test
+    fun homeDark() = shot("02_trang_chu_toi", dark = true, content = app(vmWithHome()))
+
+    @Test
+    fun homeEmpty() {
+        val vm = AppViewModel(app)
+        val trending = homePage.entries.filterIsInstance<FeedEntry.Video>().map { it.video }.take(5)
+        vm.previewHome(FeedState(loaded = true), trending)
+        shot("03_trang_chu_lan_dau", content = app(vm))
     }
 
     @Test
-    fun home() {
+    fun watchPage() {
+        val vm = vmWithHome()
+        PlaybackController.showForPreview(nowPlaying())
+        PlaybackController.segmentsForPreview(listOf(Segment("sponsor", 30_000, 60_000, "a")))
+        vm.previewComments(
+            CommentsState(
+                "x",
+                listOf(CommentItem("@cailuongfan", null, "Vũ Linh – Tài Linh diễn hay quá, xem hoài không chán!", "2 ngày trước", "15", 2, false)),
+            ),
+        )
+        vm.watchExpanded = true
+        shot("04_xem_video", content = app(vm))
+    }
+
+    @Test
+    fun watchPageDark() {
+        val vm = vmWithHome()
+        PlaybackController.showForPreview(nowPlaying())
+        vm.watchExpanded = true
+        shot("05_xem_video_toi", dark = true, content = app(vm))
+    }
+
+    @Test
+    @Config(sdk = [35], qualifiers = "w850dp-h392dp-land-xxhdpi")
+    fun fullscreen() {
+        val vm = vmWithHome()
+        PlaybackController.showForPreview(nowPlaying())
+        PlaybackController.segmentsForPreview(listOf(Segment("sponsor", 30_000, 60_000, "a")))
+        vm.watchExpanded = true
+        vm.fullscreen = true
+        shot("06_toan_man_hinh", content = app(vm))
+    }
+
+    @Test
+    fun miniPlayer() {
+        val vm = vmWithHome()
+        PlaybackController.showForPreview(nowPlaying())
+        vm.watchExpanded = false
+        shot("07_trinh_phat_mini", content = app(vm))
+    }
+
+    @Test
+    fun searchResults() {
         val vm = AppViewModel(app)
-        val videos = sampleVideos("cải lương")
-        videos.take(3).forEachIndexed { i, v -> app.store.addToHistory(v, v.durationSec * 1000 * (i + 1) / 4) }
-        videos.drop(3).take(2).forEach { app.store.toggleFavorite(it) }
-        shot("1_trang_chu") { HomeScreen(vm, {}, {}, PaddingValues()) }
+        vm.previewHome(FeedState(loaded = true))
+        val page = Parser.search(fixture("search"))
+        vm.results["cải lương"] = FeedState(entries = page.entries, continuation = page.continuation, loaded = true)
+        vm.push(Screen.Results("cải lương"))
+        shot("08_ket_qua_tim_kiem", content = app(vm))
     }
 
     @Test
     fun searchInput() {
         val vm = AppViewModel(app)
-        listOf("cải lương xưa", "thời sự hôm nay", "nhạc bolero").forEach { app.store.addRecentSearch(it) }
-        shot("2_tim_kiem") { SearchInputScreen(vm) {} }
+        vm.previewHome(FeedState(loaded = true))
+        listOf("cải lương vũ linh", "thời sự hôm nay", "nhạc bolero").forEach { app.store.addRecentSearch(it) }
+        vm.push(Screen.SearchInput)
+        shot("09_tim_kiem", content = app(vm))
     }
 
     @Test
-    fun results() {
+    fun subscriptions() {
         val vm = AppViewModel(app)
-        val q = "nhạc trữ tình"
-        vm.results[q] = ResultsState(items = sampleVideos(q), loading = false)
-        shot("3_ket_qua") { ResultsScreen(vm, q, PaddingValues()) }
+        val vids = homePage.entries.filterIsInstance<FeedEntry.Video>().map { it.video }
+        vids.mapNotNull { v -> v.channelId?.let { ChannelRef(it, v.uploader, v.channelAvatar) } }.distinctBy { it.id }.take(6)
+            .forEach { app.store.toggleSubscription(it) }
+        vm.previewTab(Tab.SUBSCRIPTIONS)
+        shot("10_kenh_dang_ky", content = app(vm))
     }
 
     @Test
-    fun player() {
+    fun you() {
         val vm = AppViewModel(app)
-        val videos = sampleVideos("thời sự VTV")
-        PlaybackController.showForPreview(NowPlaying(videos.first(), null, videos.drop(1)))
-        shot("4_xem_video") {
-            PlayerScreen(vm, inPip = false, pipSupported = true, {}, {}, {})
+        homePage.entries.filterIsInstance<FeedEntry.Video>().map { it.video }.take(6).forEachIndexed { i, v ->
+            app.store.addToHistory(v, v.durationSec * 1000 * (i + 1) / 8)
         }
-        PlaybackController.showForPreview(null)
-    }
-
-    @Test
-    fun playerWithMiniBar() {
-        val vm = AppViewModel(app)
-        val videos = sampleVideos("bolero")
-        val now = NowPlaying(videos.first(), null, emptyList())
-        shot("5_dang_phat_thu_nho") {
-            Column(Modifier.fillMaxSize()) {
-                Column(Modifier.weight(1f)) { HomeScreen(vm, {}, {}, PaddingValues()) }
-                MiniPlayer(now, isPlaying = true, loading = false, onOpen = {}, onPlayPause = {}, onClose = {})
-            }
-        }
+        vm.previewTab(Tab.YOU)
+        shot("11_ban", content = app(vm))
     }
 
     @Test
     fun settings() {
         val vm = AppViewModel(app)
-        shot("6_cai_dat") { SettingsScreen(vm, pipSupported = true, PaddingValues()) }
+        vm.previewHome(FeedState(loaded = true))
+        vm.push(Screen.Settings)
+        shot("12_cai_dat", content = app(vm))
     }
 }

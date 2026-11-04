@@ -2,8 +2,7 @@ package com.luzart.tubesach
 
 import com.luzart.tubesach.data.VideoItem
 import com.luzart.tubesach.player.StreamSourceFactory
-import com.luzart.tubesach.ui.components.formatDuration
-import com.luzart.tubesach.ui.components.formatViews
+import com.luzart.tubesach.data.YouTubeRepository
 import com.luzart.tubesach.update.UpdateChecker
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -40,14 +39,13 @@ class LogicTest {
     }
 
     @Test
-    fun formatsForHumans() {
-        assertEquals("3:05", formatDuration(185))
-        assertEquals("1:02:03", formatDuration(3723))
-        assertEquals("", formatDuration(0))
-        assertEquals("1,2 triệu lượt xem", formatViews(1_234_567))
-        assertEquals("15 nghìn lượt xem", formatViews(15_000))
-        assertEquals("999 lượt xem", formatViews(999))
-        assertNull(formatViews(-1))
+    fun formatsLikeYouTubeVietnam() {
+        assertEquals(3723L, VideoItem.parseDuration("1:02:03"))
+        assertEquals(185L, VideoItem.parseDuration("3:05"))
+        assertEquals("1,2 Tr lượt xem", YouTubeRepository.formatViewsShort(1_234_567))
+        assertEquals("15 N lượt xem", YouTubeRepository.formatViewsShort(15_000))
+        assertEquals("999 lượt xem", YouTubeRepository.formatViewsShort(999))
+        assertEquals("2 T", YouTubeRepository.formatCount(2_000_000_000))
     }
 
     private fun video(res: String, format: MediaFormat, videoOnly: Boolean = true) = VideoStream.Builder()

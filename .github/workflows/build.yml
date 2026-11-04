@@ -18,7 +18,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       BUILD_NUMBER: ${{ github.run_number }}
-      VERSION_NAME: 1.0.${{ github.run_number }}
+      VERSION_NAME: 2.0.${{ github.run_number }}
       UPDATE_REPO: ${{ github.repository }}
       HAS_KEYSTORE: ${{ secrets.SIGNING_KEYSTORE_BASE64 != '' }}
     steps:

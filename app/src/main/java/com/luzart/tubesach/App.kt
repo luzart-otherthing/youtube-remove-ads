@@ -8,6 +8,8 @@ import coil3.SingletonImageLoader
 import coil3.network.okhttp.OkHttpNetworkFetcherFactory
 import coil3.request.crossfade
 import com.luzart.tubesach.data.LocalStore
+import com.luzart.tubesach.data.YouTubeRepository
+import com.luzart.tubesach.innertube.InnerTube
 import com.luzart.tubesach.net.OkHttpDownloader
 import com.luzart.tubesach.player.PlaybackController
 import okhttp3.OkHttpClient
@@ -28,6 +30,8 @@ class App : Application(), SingletonImageLoader.Factory {
         http = OkHttpDownloader.createClient()
         NewPipe.init(OkHttpDownloader(http), Localization("vi"), ContentCountry("VN"))
         store = LocalStore(this)
+        val innerTube = InnerTube(http, loadVisitor = { store.visitorData }, saveVisitor = { store.visitorData = it })
+        YouTubeRepository.init(innerTube, http)
         PlaybackController.init(this, store)
     }
 

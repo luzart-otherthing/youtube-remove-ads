@@ -1,61 +1,101 @@
 package com.luzart.tubesach.data
 
+import android.util.Xml
+import com.luzart.tubesach.innertube.InnerTube
+import com.luzart.tubesach.innertube.Parser
+import com.luzart.tubesach.innertube.PlayerData
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
+import okhttp3.OkHttpClient
+import okhttp3.Request
 import org.schabi.newpipe.extractor.Page
 import org.schabi.newpipe.extractor.ServiceList
+import org.schabi.newpipe.extractor.comments.CommentsInfoItem
+import org.schabi.newpipe.extractor.comments.CommentsExtractor
 import org.schabi.newpipe.extractor.localization.ContentCountry
 import org.schabi.newpipe.extractor.localization.Localization
-import org.schabi.newpipe.extractor.search.SearchExtractor
 import org.schabi.newpipe.extractor.search.SearchInfo
 import org.schabi.newpipe.extractor.services.youtube.linkHandler.YoutubeSearchQueryHandlerFactory
 import org.schabi.newpipe.extractor.stream.StreamInfo
 import org.schabi.newpipe.extractor.stream.StreamInfoItem
+import org.xmlpull.v1.XmlPullParser
+import java.time.Duration
+import java.time.OffsetDateTime
 
 /**
- * Lấy dữ liệu từ YouTube bằng NewPipeExtractor: tìm kiếm, gợi ý, thông tin video.
- *
- * Vì không dùng trình phát của YouTube nên không bao giờ tải quảng cáo.
+ * Nơi lấy mọi dữ liệu YouTube.
+ * - Trang chủ, tìm kiếm, trang xem, kênh, Shorts: gọi thẳng InnerTube (nhanh, chữ tiếng Việt y như YouTube).
+ * - Link phát: máy khách visionOS (1 yêu cầu); dự phòng bằng NewPipeExtractor nếu YouTube thay đổi.
+ * - Bình luận, gợi ý tìm kiếm: NewPipeExtractor.
  */
 object YouTubeRepository {
 
-    private val youtube get() = ServiceList.YouTube
+    lateinit var innerTube: InnerTube
+        private set
+    private lateinit var http: OkHttpClient
 
-    // NewPipeExtractor mặc định chỉ dùng en-GB. Ép sang tiếng Việt để tiêu đề không bị dịch.
+    fun init(innerTube: InnerTube, http: OkHttpClient) {
+        this.innerTube = innerTube
+        this.http = http
+    }
+
+    private val youtube get() = ServiceList.YouTube
     private val vietnamese = Localization("vi")
     private val vietnam = ContentCountry("VN")
 
-    class SearchSession internal constructor(
-        val query: String,
-        internal val extractor: SearchExtractor,
-        internal var nextPage: Page?,
-    ) {
-        val hasMore: Boolean get() = Page.isValid(nextPage)
+    /** Danh sách phát "20 video thịnh hành tại Việt Nam" trên bảng xếp hạng YouTube. */
+    private const val TRENDING_VN = "VLOLAK5uy_lEos0zuYBvGC9C0FSGG3pZ6gO4a82P6zg"
+    private const val TOP_MUSIC_VN = "VLPL4fGSI1pDJn57DkisEwlIpcs9FAt5yudJ"
+
+    /** Gọi mạng và phân tích JSON (có thể vài trăm KB) ở luồng nền. */
+    private suspend fun <T> io(block: suspend () -> T): T = withContext(Dispatchers.IO) { block() }
+
+    // ------------------------------------------------------------ Trang chủ
+
+    suspend fun home(): FeedPage = io { Parser.browseGrid(innerTube.browse(browseId = "FEwhat_to_watch")) }
+
+    suspend fun feedContinuation(token: String): FeedPage = io { Parser.continuation(innerTube.browse(continuation = token)) }
+
+    suspend fun trendingVietnam(): FeedPage = io { Parser.browseGrid(innerTube.browse(browseId = TRENDING_VN)) }
+
+    suspend fun topMusicVietnam(): FeedPage = io { Parser.browseGrid(innerTube.browse(browseId = TOP_MUSIC_VN)) }
+
+    // ------------------------------------------------------------ Tìm kiếm
+
+    enum class SearchFilter(val label: String, val params: String?) {
+        ALL("Tất cả", null),
+        VIDEOS("Video", "EgIQAQ%3D%3D"),
+        LIVE("Trực tiếp", "EgJAAQ%3D%3D"),
+        THIS_WEEK("Tuần này", "EgIIAw%3D%3D"),
+        CHANNELS("Kênh", "EgIQAg%3D%3D"),
     }
 
-    suspend fun search(query: String): Pair<List<VideoItem>, SearchSession> =
-        withContext(Dispatchers.IO) {
-            val handler = youtube.searchQHFactory.fromQuery(
-                query,
-                listOf(YoutubeSearchQueryHandlerFactory.VIDEOS),
-                "",
-            )
-            val extractor = youtube.getSearchExtractor(handler).apply {
-                forceLocalization(vietnamese)
-                forceContentCountry(vietnam)
-                fetchPage()
+    suspend fun search(query: String, filter: SearchFilter = SearchFilter.ALL): FeedPage =
+        try {
+            io { Parser.search(innerTube.search(query = query, params = filter.params)) }.also {
+                if (it.entries.isEmpty()) throw IllegalStateException("empty")
             }
-            val info = SearchInfo.getInfo(extractor)
-            val items = info.relatedItems.filterIsInstance<StreamInfoItem>().map(VideoItem::from)
-            items to SearchSession(query, extractor, info.nextPage)
+        } catch (e: Exception) {
+            if (filter != SearchFilter.ALL && filter != SearchFilter.VIDEOS) throw e
+            newPipeSearch(query) // dự phòng
         }
 
-    suspend fun loadMore(session: SearchSession): List<VideoItem> = withContext(Dispatchers.IO) {
-        val page = session.nextPage
-        if (!Page.isValid(page)) return@withContext emptyList()
-        val result = session.extractor.getPage(page)
-        session.nextPage = result.nextPage
-        result.items.filterIsInstance<StreamInfoItem>().map(VideoItem::from)
+    suspend fun searchMore(token: String): FeedPage = io { Parser.search(innerTube.search(continuation = token)) }
+
+    private suspend fun newPipeSearch(query: String): FeedPage = withContext(Dispatchers.IO) {
+        val handler = youtube.searchQHFactory.fromQuery(query, listOf(YoutubeSearchQueryHandlerFactory.VIDEOS), "")
+        val extractor = youtube.getSearchExtractor(handler).apply {
+            forceLocalization(vietnamese)
+            forceContentCountry(vietnam)
+            fetchPage()
+        }
+        val info = SearchInfo.getInfo(extractor)
+        FeedPage(info.relatedItems.filterIsInstance<StreamInfoItem>().map { FeedEntry.Video(VideoItem.from(it)) }, null)
     }
 
     suspend fun suggestions(query: String): List<String> = withContext(Dispatchers.IO) {
@@ -65,37 +105,169 @@ object YouTubeRepository {
                 forceLocalization(vietnamese)
                 forceContentCountry(vietnam)
             }.suggestionList(query)
-        }.getOrDefault(emptyList()).take(8)
+        }.getOrDefault(emptyList()).take(10)
     }
 
-    private data class CachedInfo(val info: StreamInfo, val time: Long)
+    // ------------------------------------------------------------ Trang xem
 
-    private val cache = object : LinkedHashMap<String, CachedInfo>(16, 0.75f, true) {
-        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, CachedInfo>?) =
-            size > 20
+    suspend fun watch(videoId: String): WatchInfo = io { Parser.watch(innerTube.next(videoId = videoId), videoId) }
+
+    suspend fun relatedMore(token: String): FeedPage = io { Parser.continuation(innerTube.next(continuation = token)) }
+
+    suspend fun player(videoId: String): PlayerData = io { PlayerData.parse(innerTube.player(videoId), videoId) }
+
+    /** Dự phòng: lấy link phát qua NewPipeExtractor. */
+    suspend fun streamInfo(url: String): StreamInfo = withContext(Dispatchers.IO) {
+        val extractor = youtube.getStreamExtractor(url).apply {
+            forceLocalization(vietnamese)
+            forceContentCountry(vietnam)
+            fetchPage()
+        }
+        StreamInfo.getInfo(extractor)
     }
 
-    /** Link phát của YouTube hết hạn sau vài giờ → chỉ dùng bộ nhớ đệm trong 1 giờ. */
-    private const val CACHE_MS = 60 * 60 * 1000L
+    // ------------------------------------------------------------ Bình luận
 
-    suspend fun streamInfo(url: String, forceRefresh: Boolean = false): StreamInfo =
-        withContext(Dispatchers.IO) {
-            val key = VideoItem.videoIdOf(url) ?: url
-            if (!forceRefresh) {
-                synchronized(cache) { cache[key] }?.let {
-                    if (System.currentTimeMillis() - it.time < CACHE_MS) return@withContext it.info
+    class CommentsSession internal constructor(internal val extractor: CommentsExtractor, internal var next: Page?) {
+        val hasMore get() = Page.isValid(next)
+    }
+
+    suspend fun comments(videoUrl: String): Pair<List<CommentItem>, CommentsSession> = withContext(Dispatchers.IO) {
+        val extractor = youtube.getCommentsExtractor(videoUrl).apply {
+            forceLocalization(vietnamese)
+            forceContentCountry(vietnam)
+            fetchPage()
+        }
+        val page = extractor.initialPage
+        page.items.map(::comment) to CommentsSession(extractor, page.nextPage)
+    }
+
+    suspend fun moreComments(session: CommentsSession): List<CommentItem> = withContext(Dispatchers.IO) {
+        val p = session.next ?: return@withContext emptyList()
+        val page = session.extractor.getPage(p)
+        session.next = page.nextPage
+        page.items.map(::comment)
+    }
+
+    private fun comment(c: CommentsInfoItem) = CommentItem(
+        author = c.uploaderName.orEmpty(),
+        avatar = VideoItem.bestThumbnail(c.uploaderAvatars, 68),
+        text = htmlToText(c.commentText?.content.orEmpty()),
+        time = c.textualUploadDate,
+        likes = c.textualLikeCount?.takeIf { it.isNotBlank() && it != "0" },
+        replies = c.replyCount.coerceAtLeast(0),
+        pinned = c.isPinned,
+    )
+
+    private fun htmlToText(html: String): String = html
+        .replace(Regex("<br\\s*/?>"), "\n")
+        .replace(Regex("<[^>]+>"), "")
+        .replace("&amp;", "&").replace("&quot;", "\"").replace("&#39;", "'")
+        .replace("&lt;", "<").replace("&gt;", ">").replace("&nbsp;", " ")
+
+    // ------------------------------------------------------------ Kênh
+
+    suspend fun channel(id: String): ChannelPage = io { Parser.channel(innerTube.browse(browseId = id), id) }
+
+    suspend fun channelVideos(id: String, params: String?): FeedPage =
+        io { Parser.browseGrid(innerTube.browse(browseId = id, params = params ?: "EgZ2aWRlb3PyBgQKAjoA")) }
+
+    // ------------------------------------------------------------ Shorts
+
+    suspend fun shortsSequence(sequenceParams: String?, continuation: String? = null): Pair<List<String>, String?> =
+        io { Parser.reelSequence(innerTube.reelSequence(sequenceParams = sequenceParams, continuation = continuation)) }
+
+    /** Lấy một ít Shorts để bắt đầu (khi trang chủ chưa có kệ Shorts). */
+    suspend fun shortsSeed(): List<ShortItem> {
+        val page = runCatching { search("shorts việt nam") }.getOrNull() ?: return emptyList()
+        return page.entries.filterIsInstance<FeedEntry.ShortsShelf>().flatMap { it.shorts }
+    }
+
+    // ------------------------------------------------------------ Kênh đăng ký (RSS)
+
+    /** Video mới của các kênh đã đăng ký, lấy qua RSS công khai của YouTube (không cần đăng nhập). */
+    suspend fun subscriptionFeed(channels: List<ChannelRef>): List<VideoItem> = coroutineScope {
+        val limit = Semaphore(6)
+        channels.map { ch ->
+            async(Dispatchers.IO) { limit.withPermit { runCatching { rss(ch) }.getOrDefault(emptyList()) } }
+        }.awaitAll().flatten().sortedByDescending { it.second }.map { it.first }
+    }
+
+    private fun rss(channel: ChannelRef): List<Pair<VideoItem, Long>> {
+        val req = Request.Builder().url("https://www.youtube.com/feeds/videos.xml?channel_id=${channel.id}").build()
+        http.newCall(req).execute().use { r ->
+            if (!r.isSuccessful) return emptyList()
+            val parser = Xml.newPullParser()
+            parser.setFeature(XmlPullParser.FEATURE_PROCESS_NAMESPACES, false)
+            parser.setInput(r.body!!.charStream())
+            val out = mutableListOf<Pair<VideoItem, Long>>()
+            var id: String? = null
+            var title: String? = null
+            var published: String? = null
+            var thumb: String? = null
+            var views = -1L
+            var inEntry = false
+            while (parser.next() != XmlPullParser.END_DOCUMENT) {
+                when (parser.eventType) {
+                    XmlPullParser.START_TAG -> when (parser.name) {
+                        "entry" -> { inEntry = true; id = null; title = null; published = null; thumb = null; views = -1 }
+                        "yt:videoId" -> if (inEntry) id = parser.nextText()
+                        "title" -> if (inEntry) title = parser.nextText()
+                        "published" -> if (inEntry) published = parser.nextText()
+                        "media:thumbnail" -> if (inEntry) thumb = parser.getAttributeValue(null, "url")
+                        "media:statistics" -> if (inEntry) views = parser.getAttributeValue(null, "views")?.toLongOrNull() ?: -1
+                    }
+                    XmlPullParser.END_TAG -> if (parser.name == "entry" && inEntry) {
+                        inEntry = false
+                        val vid = id
+                        if (vid != null) {
+                            val time = runCatching { OffsetDateTime.parse(published) }.getOrNull()
+                            out += VideoItem(
+                                url = "https://www.youtube.com/watch?v=$vid",
+                                title = title.orEmpty(),
+                                uploader = channel.name,
+                                thumbnail = thumb ?: "https://i.ytimg.com/vi/$vid/hqdefault.jpg",
+                                durationSec = 0,
+                                viewCount = views,
+                                uploadedText = time?.let(::relativeTime),
+                                channelId = channel.id,
+                                channelAvatar = channel.avatar,
+                                viewText = if (views >= 0) formatViewsShort(views) else null,
+                            ) to (time?.toInstant()?.toEpochMilli() ?: 0L)
+                        }
+                    }
                 }
             }
-            val extractor = youtube.getStreamExtractor(url).apply {
-                forceLocalization(vietnamese)
-                forceContentCountry(vietnam)
-                fetchPage()
-            }
-            val info = StreamInfo.getInfo(extractor)
-            synchronized(cache) { cache[key] = CachedInfo(info, System.currentTimeMillis()) }
-            info
+            return out
         }
+    }
 
-    fun relatedOf(info: StreamInfo): List<VideoItem> =
-        info.relatedItems.filterIsInstance<StreamInfoItem>().map(VideoItem::from)
+    fun relativeTime(t: OffsetDateTime): String {
+        val d = Duration.between(t, OffsetDateTime.now()).coerceAtLeast(Duration.ZERO)
+        val minutes = d.toMinutes()
+        return when {
+            minutes < 1 -> "Vừa xong"
+            minutes < 60 -> "$minutes phút trước"
+            minutes < 60 * 24 -> "${minutes / 60} giờ trước"
+            minutes < 60 * 24 * 7 -> "${minutes / (60 * 24)} ngày trước"
+            minutes < 60 * 24 * 30 -> "${minutes / (60 * 24 * 7)} tuần trước"
+            minutes < 60 * 24 * 365 -> "${minutes / (60 * 24 * 30)} tháng trước"
+            else -> "${minutes / (60 * 24 * 365)} năm trước"
+        }
+    }
+
+    /** Định dạng lượt xem kiểu YouTube Việt Nam: "999 lượt xem", "12 N lượt xem", "1,2 Tr lượt xem". */
+    fun formatViewsShort(views: Long, suffix: String = "lượt xem"): String = "${formatCount(views)} $suffix"
+
+    fun formatCount(n: Long): String {
+        fun fmt(v: Double): String =
+            if (v < 10) String.format(java.util.Locale.forLanguageTag("vi"), "%.1f", v).removeSuffix(",0")
+            else v.toLong().toString()
+        return when {
+            n >= 1_000_000_000 -> "${fmt(n / 1e9)} T"
+            n >= 1_000_000 -> "${fmt(n / 1e6)} Tr"
+            n >= 1_000 -> "${fmt(n / 1e3)} N"
+            else -> n.toString()
+        }
+    }
 }

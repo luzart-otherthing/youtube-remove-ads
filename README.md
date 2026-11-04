@@ -1,149 +1,117 @@
-# Tube Sạch – xem YouTube không quảng cáo, dễ dùng cho người lớn tuổi
+# Tube Sạch – xem YouTube không quảng cáo
 
-Ứng dụng Android để xem video YouTube:
+Ứng dụng Android có giao diện theo kiểu app YouTube, **không quảng cáo, không cần đăng nhập**, có hình trong hình, phát khi tắt màn hình và SponsorBlock. Toàn bộ nội dung bằng tiếng Việt: trang chủ, đề xuất, thịnh hành, bình luận, phụ đề.
 
-- **Không có quảng cáo**: không quảng cáo đầu video, không quảng cáo giữa video, không banner.
-- **Không cần đăng nhập**: không cần tài khoản Google, không cần MicroG.
-- **Hình trong hình**: video thu thành cửa sổ nhỏ nổi trên màn hình để vừa xem vừa dùng Zalo, Facebook.
-- **Tắt màn hình vẫn nghe được tiếng**: có nút điều khiển trên màn hình khoá, thanh thông báo, tai nghe Bluetooth.
-- **Dễ dùng cho người lớn tuổi**: chữ to, nút to, có chữ ghi bên dưới mỗi nút, tìm bằng giọng nói, có sẵn các chủ đề (Tin tức, Ca nhạc, Bolero, Cải lương, Phim, Nấu ăn, Sức khoẻ…).
+| Trang chủ | Xem video | Toàn màn hình |
+|---|---|---|
+| ![](docs/screenshots/01_trang_chu.png) | ![](docs/screenshots/04_xem_video.png) | ![](docs/screenshots/06_toan_man_hinh.png) |
 
-| Trang chủ | Kết quả tìm | Xem video | Đang phát + đi tìm video khác |
-|---|---|---|---|
-| ![](docs/screenshots/1_trang_chu.png) | ![](docs/screenshots/3_ket_qua.png) | ![](docs/screenshots/4_xem_video.png) | ![](docs/screenshots/5_dang_phat_thu_nho.png) |
+| Lần đầu mở | Giao diện tối | Trình phát mini | Tìm kiếm | Bạn |
+|---|---|---|---|---|
+| ![](docs/screenshots/03_trang_chu_lan_dau.png) | ![](docs/screenshots/05_xem_video_toi.png) | ![](docs/screenshots/07_trinh_phat_mini.png) | ![](docs/screenshots/08_ket_qua_tim_kiem.png) | ![](docs/screenshots/11_ban.png) |
 
-> Ảnh chụp được tạo tự động bằng Robolectric trên máy tính nên ảnh thu nhỏ của video để trống; trên điện thoại thật ảnh hiện bình thường.
+> Ảnh được chụp tự động trên máy tính (Robolectric) với dữ liệu YouTube thật, nên ô ảnh thu nhỏ để trống. Trên điện thoại ảnh hiện bình thường.
 
 ## Tính năng
 
-| Tính năng | Mô tả |
-|---|---|
-| Tìm kiếm | Ô tìm kiếm to, gợi ý khi gõ, lưu các lần tìm gần đây |
-| Tìm bằng giọng nói | Bấm nút vàng **"Nói"** rồi nói tiếng Việt |
-| Chủ đề có sẵn | 12 nút chủ đề, bấm là ra video |
-| Xem tiếp | Mở lại video đã xem dở, phát tiếp từ chỗ đã dừng (hợp với video cải lương 2–3 tiếng) |
-| Yêu thích | Bấm ❤ để lưu video |
-| Hình trong hình | Nút **"Thu nhỏ màn hình"**, hoặc tự thu nhỏ khi bấm nút Home lúc đang xem (Android 8 trở lên) |
-| Phát nền | Tắt màn hình hoặc chuyển ứng dụng khác vẫn nghe tiếng. Lúc này app chỉ tải tiếng nên đỡ tốn 3G/4G |
-| Hẹn giờ tắt | 15 / 30 / 60 / 90 phút hoặc "khi hết video này" (dành cho người hay nghe rồi ngủ quên) |
-| Tự phát tiếp | Hết video thì tự phát video liên quan (bật/tắt được) |
-| Mở link từ Zalo/Facebook | Bấm **Chia sẻ → Tube Sạch** trên link YouTube người khác gửi |
-| Chất lượng | 360p (tiết kiệm) / 480p / 720p (mặc định) / 1080p |
-| Cỡ chữ | Lớn / Rất lớn / Cực lớn |
-| Tự báo bản mới | Khi có bản sửa lỗi trên GitHub Releases, Trang chủ hiện thông báo màu vàng để bấm tải (chỉ chạy khi repo để công khai) |
+**Giống app YouTube**
+- Thanh dưới: *Trang chủ · Shorts · Kênh đăng ký · Bạn*.
+- Trang chủ có hàng chip của YouTube (*Tất cả, Âm nhạc, Tin tức, Trò chơi, Danh sách kết hợp, Trực tiếp, Mới tải lên gần đây…*), kệ Shorts, kệ "Tin nổi bật". Kéo xuống để làm mới, cuộn mãi không hết.
+- Trang xem có tiêu đề, "…thêm" (nội dung mô tả: link và mốc thời gian bấm được), kênh kèm nút **Đăng ký** / **🔔 Đã đăng ký ⌄**, viên 👍 | 👎, Chia sẻ, Lưu, thẻ Bình luận, video liên quan.
+- Trình phát có:
+  - nút ⌄ thu nhỏ, phụ đề CC, ⚙ cài đặt;
+  - nút trước / phát / tiếp theo;
+  - thanh tua đỏ, chạm 2 lần để tua ±10 giây;
+  - vuốt xuống để thu nhỏ, vuốt lên để toàn màn hình.
+- Toàn màn hình ngang có tiêu đề, hàng nút Thích / Không thích / Bình luận / Lưu / Chia sẻ.
+- Bảng ⚙ giống YouTube:
+  - **Chất lượng**: Tự động (khuyên dùng) / Chất lượng hình ảnh cao hơn / Tiết kiệm dữ liệu / Nâng cao (1080p…144p);
+  - **Phụ đề**, có *Tự động dịch: Tiếng Việt*;
+  - **Tốc độ phát** 0,25–2x;
+  - **Hẹn giờ ngủ**;
+  - **Lặp lại video**;
+  - **SponsorBlock**.
+- Trình phát mini nằm trên thanh dưới; giao diện sáng/tối theo máy.
+- Trang kênh (ảnh bìa, @tên, số người đăng ký, tab Video / Trực tiếp), tab Shorts vuốt dọc, tab Bạn (video đã xem, đã thích, xem sau).
+
+**Hơn app YouTube (học từ ReVanced / RVX "YT Extended")**
+- Không quảng cáo.
+- Phát khi tắt màn hình (có nút trên màn hình khoá); lúc đó chỉ tải tiếng để tiết kiệm 4G.
+- Hình trong hình tự bật khi bấm nút Home.
+- **SponsorBlock**: tự bỏ qua đoạn tài trợ, chọn được từng loại (tài trợ, tự quảng cáo, nhắc đăng ký, mở đầu, kết thúc…). Đoạn được tô màu trên thanh tua, có thông báo "Đã bỏ qua… · Hoàn tác". **Bật/tắt bất cứ lúc nào** bằng nút $ trên trình phát, trong bảng ⚙ hoặc trong Cài đặt.
+- **Return YouTube Dislike**: hiện lại số lượt không thích.
+- Ẩn Shorts; cỡ chữ lớn cho người lớn tuổi.
+- Mở link YouTube được chia sẻ từ Zalo/Facebook; tự kiểm tra bản cập nhật.
+
+## Đề xuất tiếng Việt mà không cần đăng nhập
+
+Giống YouTube thật: **lần đầu mở, trang chủ trống** ("Thử tìm kiếm để bắt đầu"); app hiện tạm danh sách *Thịnh hành tại Việt Nam* bên dưới. Sau khi xem vài video, trang chủ có đề xuất tiếng Việt của chính YouTube.
+
+Cách làm: giống trình duyệt chưa đăng nhập. App giữ một **mã khách ẩn danh** (visitor ID) và báo cho YouTube biết đã xem video nào. YouTube dựa vào đó để đề xuất. Không có tài khoản Google, không có tên hay email nào. Có thể tắt hoặc xoá trong *Cài đặt → Quyền riêng tư*.
+
+## Đã tìm hiểu những mã nguồn nào?
+
+| Dự án | Sao GitHub | Cách lấy dữ liệu | Nhận xét |
+|---|---|---|---|
+| NewPipe | ~40,4 nghìn | NewPipeExtractor (Java) | Thư viện lấy dữ liệu tốt nhất, được bảo trì đều; giao diện riêng thì cũ |
+| SmartTube | ~35,9 nghìn | MediaServiceCore: gọi thẳng InnerTube | Dành cho TV; ý tưởng gọi thẳng API của YouTube rất nhanh |
+| LibreTube | ~12,5 nghìn | Máy chủ Piped hoặc NewPipeExtractor | Giao diện Material |
+| ReVanced / RVX (anddea) | – | Sửa (patch) app YouTube gốc | Giao diện YouTube thật nhưng phải tự vá APK của Google, cần GmsCore |
+| yt-dlp | rất nhiều | Python | Hợp cho tải video, không hợp làm app xem trên Android |
+
+**Kết hợp trong Tube Sạch:**
+- **Gọi thẳng InnerTube** như SmartTube cho trang chủ, tìm kiếm, trang xem, kênh và Shorts. Cách này giữ nguyên chữ tiếng Việt của YouTube ("1,2 Tr lượt xem", "4 ngày trước"), có ảnh đại diện kênh và chip.
+- **Lấy link phát bằng máy khách visionOS**: chỉ 1 yêu cầu, khoảng 0,2–0,5 giây; NewPipe cần 1,4–3 giây. App tự dựng manifest DASH nhiều độ phân giải để ExoPlayer tự đổi chất lượng như YouTube.
+- **NewPipeExtractor làm dự phòng** khi YouTube đổi cách hoạt động, và để đọc bình luận, gợi ý tìm kiếm.
+- **Tính năng của ReVanced/RVX**: SponsorBlock, Return YouTube Dislike, ẩn Shorts, tự chọn chất lượng, hình trong hình, phát nền. Ở đây chúng được làm lại trên app riêng, không sửa APK của Google.
+
+Tên và logo của app được giữ riêng (không dùng logo YouTube) để tránh vi phạm nhãn hiệu, và để Play Protect không cảnh báo "app giả mạo".
 
 ## Cài đặt lên điện thoại
 
-1. Vào mục **Releases** của repo này (hoặc **Actions → lần chạy mới nhất → Artifacts**), tải file `TubeSach-1.0.x.apk`.
-2. Mở file vừa tải. Nếu điện thoại hỏi, bấm **Cài đặt → cho phép cài ứng dụng từ nguồn này**.
-3. Bấm **Cài đặt**. Biểu tượng **Tube Sạch** (vòng tròn trắng nút play xanh) sẽ xuất hiện trên màn hình chính.
+1. Vào **Releases** của repo (hoặc *Actions → lần chạy mới nhất → Artifacts*), tải file `TubeSach-2.0.x.apk`.
+2. Mở file, cho phép cài từ nguồn này nếu được hỏi, rồi bấm **Cài đặt**. Bản mới cài đè lên bản cũ, không mất lịch sử.
 
-Yêu cầu: Android 6.0 trở lên. Hình trong hình cần Android 8.0 trở lên.
+Yêu cầu Android 6.0 trở lên; hình trong hình cần Android 8.0 trở lên.
 
-**Mẹo cho con cháu cài giúp ông bà:**
+Một số máy (Xiaomi, Oppo, Vivo, Samsung) có chế độ tiết kiệm pin quá mạnh, làm mất tiếng khi tắt màn hình. Khi đó vào *Cài đặt → Pin → Tube Sạch → Không giới hạn*.
 
-- Kéo biểu tượng Tube Sạch ra màn hình chính, để cạnh Zalo.
-- Muốn link YouTube trong Zalo mở thẳng bằng Tube Sạch: *Cài đặt điện thoại → Ứng dụng → Tube Sạch → Mở theo mặc định → bật "Mở các liên kết được hỗ trợ"*. Nếu máy có app YouTube gốc thì nên tắt (vô hiệu hoá) nó đi để khỏi bị hỏi chọn app.
-- Nếu xem lúc tắt màn hình bị ngắt tiếng (một số máy Xiaomi, Oppo, Vivo, Samsung tiết kiệm pin quá mạnh): *Cài đặt → Pin → Tube Sạch → Không giới hạn / Không tối ưu hoá*.
+## Khi YouTube thay đổi làm app lỗi
 
-## Các app YouTube không quảng cáo hoạt động thế nào?
+- Đường phát chính (visionOS) lỗi thì app **tự chuyển sang NewPipeExtractor**.
+- Muốn cập nhật thư viện: sửa phiên bản `NewPipeExtractor` trong `app/build.gradle.kts` (xem bản mới tại https://github.com/TeamNewPipe/NewPipeExtractor/releases) rồi push lên `main`. GitHub Actions sẽ tự build APK mới.
+- Phần đọc giao diện YouTube nằm trong `innertube/Parser.kt`. Test `ParserTest` chạy với dữ liệu thật đã lưu ở `app/src/test/resources/fixtures`.
 
-| App | Cách làm | Ghi chú |
-|---|---|---|
-| **YouTube Vanced** (đã dừng 2022) | Lấy APK YouTube gốc, dịch ngược rồi **sửa mã (patch smali)**: tắt đoạn mã tải quảng cáo, mở khoá phát nền và hình trong hình vốn là tính năng Premium | Đăng nhập Google qua **MicroG** (bản thay thế Google Play Services). Bị Google gửi thư yêu cầu dừng nên ngừng phát triển |
-| **ReVanced** | Giống Vanced nhưng là một **bộ công cụ vá**: người dùng tự tải APK YouTube gốc rồi dùng *ReVanced Manager* áp các bản vá (chặn quảng cáo, SponsorBlock, phát nền…) ngay trên máy | Vẫn là app YouTube gốc nên giao diện y hệt; đăng nhập qua GmsCore/MicroG. YouTube cập nhật thì phải vá lại |
-| **NewPipe, PipePipe, Tubular, LibreTube** | **Viết lại từ đầu**: đọc dữ liệu từ các API nội bộ của YouTube (InnerTube) hoặc qua máy chủ Piped/Invidious, lấy link file video gốc trên `googlevideo.com` rồi tự phát bằng ExoPlayer | Vì không dùng trình phát của YouTube nên **quảng cáo không bao giờ được tải**. Không cần tài khoản |
-| **PureTube và các app "YouTube nền" trên Play** | Phần lớn là **WebView** (trình duyệt nhúng) mở trang `m.youtube.com`, chèn JavaScript/CSS để ẩn và bỏ qua quảng cáo, dùng dịch vụ nền (foreground service) để giữ tiếng khi tắt màn hình | Dễ làm nhưng thỉnh thoảng vẫn lọt quảng cáo |
-| **Brave, Cốc Cốc, Kiwi + uBlock** | **Trình duyệt có bộ chặn quảng cáo** dùng danh sách lọc (EasyList, uBlock): chặn yêu cầu mạng tới máy chủ quảng cáo, ẩn phần tử quảng cáo, và chèn "scriptlet" xoá trường `adPlacements`/`playerAds` khỏi dữ liệu trình phát trước khi trang đọc tới. Phát nền bằng cách giả lập trang vẫn đang hiển thị (Page Visibility API) | Chặn DNS (AdGuard DNS, Pi-hole) **không chặn được** quảng cáo YouTube vì quảng cáo đến cùng máy chủ với video |
-
-**Tube Sạch đi theo hướng của NewPipe** (cách ổn định và "sạch" nhất):
-
-```
-Tìm kiếm / thông tin video ──► NewPipeExtractor (đọc API InnerTube của YouTube, giống NewPipe)
-                                    │
-                                    ▼
-          Link luồng hình (H.264 ≤ 720p) + luồng tiếng (AAC 128kbps) trên googlevideo.com
-                                    │  bọc thành manifest DASH để tua nhanh
-                                    ▼
-              ExoPlayer (Media3) ── MediaSessionService: phát nền, màn hình khoá, Bluetooth
-                                    │
-                                    ▼
-              Giao diện Jetpack Compose chữ to + chế độ Hình trong hình của Android
-```
-
-Không có bước nào gọi tới máy chủ quảng cáo nên không cần "chặn" gì cả.
-
-## Khi YouTube thay đổi làm app không xem được
-
-YouTube thỉnh thoảng đổi cách hoạt động khiến các app như NewPipe (và app này) tạm lỗi. Cách sửa:
-
-1. Xem bản mới nhất của NewPipeExtractor tại <https://github.com/TeamNewPipe/NewPipeExtractor/releases>.
-2. Sửa dòng sau trong `app/build.gradle.kts`:
-   ```kotlin
-   implementation("com.github.TeamNewPipe:NewPipeExtractor:v0.26.5")
-   ```
-   (Nếu bản sửa lỗi chưa phát hành, có thể dùng mã commit, ví dụ `:6cb36e9`.)
-3. Push lên nhánh `main`. GitHub Actions tự build APK mới và tạo Release. Ứng dụng trên điện thoại sẽ hiện thông báo "Có phiên bản mới" nếu repo để công khai.
-
-## Build từ mã nguồn
-
-Cần JDK 17+ và Android SDK (compileSdk 36).
+## Build và test
 
 ```bash
-./gradlew :app:assembleRelease        # APK ở app/build/outputs/apk/release/
-./gradlew :app:testDebugUnitTest      # test logic + test mở app (Robolectric)
+./gradlew :app:assembleRelease                                     # APK ở app/build/outputs/apk/release/
+./gradlew :app:testDebugUnitTest                                   # test logic, bộ đọc, mở app
+./gradlew :app:testDebugUnitTest -Donline=true --tests '*Online*'  # gọi YouTube thật: ExoPlayer đọc hình + tiếng + phụ đề
+./gradlew :app:testDebugUnitTest -Dscreenshots=true --tests '*ScreenshotTest*'  # chụp lại ảnh màn hình
 ```
 
-Test cần mạng (gọi YouTube thật, kiểm tra ExoPlayer đọc được luồng hình + tiếng):
-
-```bash
-./gradlew :app:testDebugUnitTest -Donline=true --tests '*OnlinePipelineTest*'
-```
-
-Chụp lại ảnh màn hình (lưu ở `app/build/outputs/roborazzi/`):
-
-```bash
-./gradlew :app:testDebugUnitTest -Dscreenshots=true --tests '*ScreenshotTest*'
-```
-
-### Khoá ký APK
-
-APK được ký bằng khoá cố định `app/signing/tubesach.jks` (mật khẩu `tubesach`) để các bản cập nhật cài đè được lên nhau. Khoá này nằm trong repo, ai có repo đều ký được APK giả mạo. Nếu repo để công khai hoặc chia sẻ rộng, nên tạo khoá riêng **trước khi** cài cho mọi người (đổi khoá thì phải gỡ app cũ rồi cài lại):
-
-```bash
-keytool -genkeypair -keystore my.jks -alias tubesach -keyalg RSA -keysize 2048 -validity 36500
-base64 -w0 my.jks   # dán vào secret SIGNING_KEYSTORE_BASE64
-```
-
-Rồi thêm các secret `SIGNING_KEYSTORE_BASE64`, `SIGNING_STORE_PASSWORD`, `SIGNING_KEY_ALIAS`, `SIGNING_KEY_PASSWORD` trong *Settings → Secrets and variables → Actions*.
+APK được ký bằng khoá cố định `app/signing/tubesach.jks` để bản cập nhật cài đè được. Nếu repo để công khai, nên tạo khoá riêng: tạo bằng `keytool`, đổi sang base64, rồi lưu vào các secret `SIGNING_KEYSTORE_BASE64`, `SIGNING_STORE_PASSWORD`, `SIGNING_KEY_ALIAS`, `SIGNING_KEY_PASSWORD`. Làm việc này **trước khi** cài cho mọi người.
 
 ## Cấu trúc mã
 
 ```
 app/src/main/java/com/luzart/tubesach/
-├── App.kt                      Khởi tạo NewPipeExtractor, Coil, trình phát
-├── net/OkHttpDownloader.kt     Bộ tải HTTP cho NewPipeExtractor
-├── data/
-│   ├── YouTubeRepository.kt    Tìm kiếm, gợi ý, thông tin video (ép tiếng Việt)
-│   ├── LocalStore.kt           Lịch sử, yêu thích, cài đặt (chỉ lưu trên máy)
-│   └── VideoItem.kt
-├── player/
-│   ├── StreamSourceFactory.kt  Chọn luồng hình/tiếng, dựng DASH, User-Agent theo máy khách
-│   ├── PlaybackController.kt   Điều khiển phát, tự thử lại khi link hết hạn, hẹn giờ tắt, tự phát tiếp
-│   └── PlaybackService.kt      MediaSessionService: phát nền + màn hình khoá
-├── ui/
-│   ├── MainActivity.kt         Hình trong hình, toàn màn hình, nhận link chia sẻ, giọng nói
-│   ├── AppViewModel.kt         Điều hướng + trạng thái tìm kiếm
-│   └── screens/…               Trang chủ, Tìm kiếm, Kết quả, Xem video, Cài đặt
-└── update/UpdateChecker.kt     Kiểm tra bản mới trên GitHub Releases
+├── innertube/      InnerTube.kt (gọi API), Parser.kt (đọc trang chủ/tìm kiếm/trang xem/kênh/Shorts),
+│                   DirectStreams.kt (link phát + DASH + phụ đề), WatchTracker.kt (báo lượt xem ẩn danh)
+├── sponsor/        SponsorBlock + Return YouTube Dislike
+├── data/           YouTubeRepository (gộp nguồn + dự phòng NewPipe), LocalStore (lịch sử, kênh đăng ký, cài đặt)
+├── player/         PlaybackController (chất lượng, tốc độ, lặp, phụ đề, SponsorBlock, hẹn giờ), PlaybackService (phát nền)
+└── ui/             TubeApp (khung chính), screens/ (Trang chủ, Shorts, Kênh đăng ký, Bạn, Tìm kiếm, Kênh, Xem, Cài đặt),
+                    player/ (lớp điều khiển, thanh tua, bảng ⚙, trình phát mini), theme/ (màu sáng/tối)
 ```
 
 ## Lưu ý
 
-- Ứng dụng dành cho mục đích cá nhân, học tập. Xem YouTube qua ứng dụng bên thứ ba không đúng Điều khoản dịch vụ của YouTube. Ứng dụng không tải lên hay phát tán lại nội dung nào.
-- Nếu thích một kênh, hãy ủng hộ người làm video (đăng ký kênh, YouTube Premium…).
+- Dùng cho mục đích cá nhân. Xem YouTube qua ứng dụng bên thứ ba không đúng Điều khoản dịch vụ của YouTube. App không liên kết với YouTube hay Google.
 - Video giới hạn độ tuổi, video riêng tư và video chỉ dành cho hội viên không xem được vì cần đăng nhập.
+- Hãy ủng hộ người làm video bạn yêu thích.
 
 ## Giấy phép
 
-GPL-3.0 (theo giấy phép của [NewPipeExtractor](https://github.com/TeamNewPipe/NewPipeExtractor)). Quy tắc R8/ProGuard và cách dựng nguồn phát tham khảo từ [NewPipe](https://github.com/TeamNewPipe/NewPipe).
+GPL-3.0 (theo [NewPipeExtractor](https://github.com/TeamNewPipe/NewPipeExtractor)). Có tham khảo [NewPipe](https://github.com/TeamNewPipe/NewPipe), [SmartTube](https://github.com/yuliskov/SmartTube), [SponsorBlock](https://sponsor.ajay.app), [Return YouTube Dislike](https://returnyoutubedislike.com).

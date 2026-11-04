@@ -2,6 +2,7 @@ package com.luzart.tubesach.player
 
 import android.content.Context
 import android.net.Uri
+import android.util.Base64
 import androidx.annotation.OptIn
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
@@ -13,9 +14,12 @@ import androidx.media3.datasource.ResolvingDataSource
 import androidx.media3.exoplayer.dash.DashMediaSource
 import androidx.media3.exoplayer.dash.manifest.DashManifestParser
 import androidx.media3.exoplayer.hls.HlsMediaSource
+import androidx.media3.common.MimeTypes
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.exoplayer.source.MediaSource
 import androidx.media3.exoplayer.source.MergingMediaSource
 import androidx.media3.exoplayer.source.ProgressiveMediaSource
+import com.luzart.tubesach.innertube.PlayerData
 import com.luzart.tubesach.net.OkHttpDownloader
 import org.schabi.newpipe.extractor.MediaFormat
 import org.schabi.newpipe.extractor.services.youtube.YoutubeParsingHelper
@@ -60,6 +64,30 @@ class StreamSourceFactory(context: Context) {
     }
 
     private val dataSourceFactory: DataSource.Factory = DefaultDataSource.Factory(context, youtubeFactory)
+
+    private val mediaSourceFactory = DefaultMediaSourceFactory(dataSourceFactory)
+
+    /**
+     * Đường nhanh: dùng dữ liệu /player (visionOS). Dựng manifest DASH có nhiều độ phân giải
+     * → ExoPlayer tự đổi chất lượng theo mạng. Phụ đề (nếu chọn) được gắn kèm.
+     */
+    fun buildDirect(
+        data: PlayerData,
+        metadata: MediaMetadata,
+        subtitle: MediaItem.SubtitleConfiguration?,
+    ): MediaSource {
+        val builder = MediaItem.Builder().setMediaId(data.videoId).setMediaMetadata(metadata)
+        val manifest = if (data.isLive) null else data.dashManifest()
+        when {
+            manifest != null -> builder
+                .setUri("data:application/dash+xml;base64," + Base64.encodeToString(manifest.toByteArray(), Base64.NO_WRAP))
+                .setMimeType(MimeTypes.APPLICATION_MPD)
+            data.hlsUrl != null -> builder.setUri(data.hlsUrl).setMimeType(MimeTypes.APPLICATION_M3U8)
+            else -> throw NoPlayableStreamException()
+        }
+        if (subtitle != null) builder.setSubtitleConfigurations(listOf(subtitle))
+        return mediaSourceFactory.createMediaSource(builder.build())
+    }
 
     private fun userAgentFor(url: String): String = when {
         YoutubeParsingHelper.isAndroidStreamingUrl(url) -> YoutubeParsingHelper.getAndroidUserAgent(null)
