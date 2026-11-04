@@ -1,0 +1,69 @@
+name: Build APK
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      BUILD_NUMBER: ${{ github.run_number }}
+      VERSION_NAME: 1.0.${{ github.run_number }}
+      UPDATE_REPO: ${{ github.repository }}
+      HAS_KEYSTORE: ${{ secrets.SIGNING_KEYSTORE_BASE64 != '' }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - uses: gradle/actions/setup-gradle@v5
+
+      # Tuỳ chọn: dùng khoá ký riêng lưu trong GitHub Secrets thay cho khoá mặc định trong repo.
+      - name: Use private signing key
+        if: env.HAS_KEYSTORE == 'true'
+        run: |
+          echo "${{ secrets.SIGNING_KEYSTORE_BASE64 }}" | base64 -d > "$RUNNER_TEMP/release.jks"
+          {
+            echo "SIGNING_KEYSTORE=$RUNNER_TEMP/release.jks"
+            echo "SIGNING_STORE_PASSWORD=${{ secrets.SIGNING_STORE_PASSWORD }}"
+            echo "SIGNING_KEY_ALIAS=${{ secrets.SIGNING_KEY_ALIAS }}"
+            echo "SIGNING_KEY_PASSWORD=${{ secrets.SIGNING_KEY_PASSWORD }}"
+          } >> "$GITHUB_ENV"
+
+      - name: Unit tests
+        run: ./gradlew :app:testDebugUnitTest --stacktrace
+
+      - name: Build release APK
+        run: ./gradlew :app:assembleRelease --stacktrace
+
+      - name: Rename APK
+        run: cp app/build/outputs/apk/release/app-release.apk "TubeSach-${VERSION_NAME}.apk"
+
+      - uses: actions/upload-artifact@v6
+        with:
+          name: TubeSach-${{ env.VERSION_NAME }}
+          path: TubeSach-*.apk
+
+      - name: Publish GitHub Release
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "v${VERSION_NAME}" "TubeSach-${VERSION_NAME}.apk" \
+            --target "${GITHUB_SHA}" \
+            --title "Tube Sạch ${VERSION_NAME}" \
+            --latest \
+            --notes "Tải file **TubeSach-${VERSION_NAME}.apk** bên dưới về điện thoại Android rồi bấm vào để cài. Bản này cài đè lên bản cũ được, không mất lịch sử xem."
