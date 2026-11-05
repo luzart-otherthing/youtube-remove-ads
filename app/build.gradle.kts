@@ -112,15 +112,8 @@ dependencies {
 
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs_nio:2.1.5")
 
-    // Lõi lấy dữ liệu YouTube (giống NewPipe) – không dùng API chính thức, không quảng cáo.
-    implementation("com.github.TeamNewPipe:NewPipeExtractor:v0.26.5")
-    implementation("com.squareup.okhttp3:okhttp:4.12.0")
-
-    // Trình phát video
-    implementation("androidx.media3:media3-exoplayer:$media3")
-    implementation("androidx.media3:media3-exoplayer-dash:$media3")
-    implementation("androidx.media3:media3-exoplayer-hls:$media3")
-    implementation("androidx.media3:media3-session:$media3")
+    // Phần lõi: lấy dữ liệu YouTube, trình phát, SponsorBlock, lịch sử (dùng chung với app TV)
+    implementation(project(":core"))
     implementation("androidx.media3:media3-ui:$media3")
 
     // Giao diện

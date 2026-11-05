@@ -9,7 +9,6 @@ import androidx.media3.session.CommandButton
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
 import com.google.common.collect.ImmutableList
-import com.luzart.tubesach.ui.MainActivity
 
 /**
  * Dịch vụ phát nền: giữ âm thanh chạy khi tắt màn hình hoặc chuyển sang ứng dụng khác,
@@ -25,9 +24,7 @@ class PlaybackService : MediaSessionService() {
         val openApp = PendingIntent.getActivity(
             this,
             0,
-            Intent(this, MainActivity::class.java)
-                .setAction(MainActivity.ACTION_OPEN_PLAYER)
-                .addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP),
+            PlaybackController.sessionActivityIntent(this),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
 

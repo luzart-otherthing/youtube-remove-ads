@@ -9,6 +9,7 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.luzart.tubesach.App
+import com.luzart.tubesach.BuildConfig
 import com.luzart.tubesach.data.ChannelPage
 import com.luzart.tubesach.data.Chip
 import com.luzart.tubesach.data.CommentItem
@@ -174,7 +175,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun selectChip(index: Int) {
         val chip = home.chips.getOrNull(index) ?: return
-        if (index == 0 || chip.token == null) {
+        val token = chip.token
+        if (index == 0 || token == null) {
             refreshHome()
             return
         }
@@ -182,7 +184,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         home = home.copy(selectedChip = index, loading = true, entries = emptyList(), error = null)
         homeJob = viewModelScope.launch {
             try {
-                val page = YouTubeRepository.feedContinuation(chip.token)
+                val page = YouTubeRepository.feedContinuation(token)
                 home = home.copy(entries = page.entries, continuation = page.continuation, loading = false)
             } catch (e: CancellationException) {
                 throw e
@@ -473,7 +475,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         if (checkingUpdate) return
         checkingUpdate = true
         viewModelScope.launch {
-            val result = UpdateChecker.check(http)
+            val result = UpdateChecker.check(http, BuildConfig.UPDATE_REPO, BuildConfig.VERSION_NAME, UpdateChecker.PHONE_PREFIX)
             store.lastUpdateCheck = System.currentTimeMillis()
             update = result
             checkingUpdate = false

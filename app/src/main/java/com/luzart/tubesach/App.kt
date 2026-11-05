@@ -2,6 +2,7 @@ package com.luzart.tubesach
 
 import android.app.Application
 import android.content.Context
+import android.content.Intent
 import coil3.ImageLoader
 import coil3.PlatformContext
 import coil3.SingletonImageLoader
@@ -12,6 +13,7 @@ import com.luzart.tubesach.data.YouTubeRepository
 import com.luzart.tubesach.innertube.InnerTube
 import com.luzart.tubesach.net.OkHttpDownloader
 import com.luzart.tubesach.player.PlaybackController
+import com.luzart.tubesach.ui.MainActivity
 import okhttp3.OkHttpClient
 import org.schabi.newpipe.extractor.NewPipe
 import org.schabi.newpipe.extractor.localization.ContentCountry
@@ -32,7 +34,12 @@ class App : Application(), SingletonImageLoader.Factory {
         store = LocalStore(this)
         val innerTube = InnerTube(http, loadVisitor = { store.visitorData }, saveVisitor = { store.visitorData = it })
         YouTubeRepository.init(innerTube, http)
-        PlaybackController.init(this, store)
+        PlaybackController.sessionActivityIntent = { ctx ->
+            Intent(ctx, MainActivity::class.java)
+                .setAction(MainActivity.ACTION_OPEN_PLAYER)
+                .addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
+        }
+        PlaybackController.init(this, store, http)
     }
 
     override fun newImageLoader(context: PlatformContext): ImageLoader =

@@ -138,7 +138,7 @@ fun Thumbnail(
         )
         val label = when {
             video.isLive -> "TRỰC TIẾP"
-            video.durationText != null -> video.durationText
+            video.durationText != null -> video.durationText.orEmpty()
             else -> formatDuration(video.durationSec)
         }
         if (label.isNotEmpty()) {
@@ -154,9 +154,9 @@ fun Thumbnail(
                     .padding(horizontal = 4.dp, vertical = 1.dp),
             )
         }
-        if (video.badge != null) {
+        video.badge?.let { badge ->
             Text(
-                video.badge,
+                badge,
                 color = Color.White,
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Medium,
@@ -534,8 +534,9 @@ fun VideoMenuSheet(
             SheetItem(Icons.Outlined.WatchLater, if (saved) "Xoá khỏi danh sách Xem sau" else "Lưu vào danh sách Xem sau") { onToggleSave(); onDismiss() }
             SheetItem(Icons.AutoMirrored.Outlined.PlaylistAdd, "Lưu vào danh sách phát") { onToggleSave(); onDismiss() }
             SheetItem(Icons.Outlined.Share, "Chia sẻ") { shareVideo(context, video); onDismiss() }
-            if (onOpenChannel != null && video.channelId != null) {
-                SheetItem(Icons.Outlined.AccountBox, "Đi đến kênh") { onOpenChannel(video.channelId); onDismiss() }
+            val channelId = video.channelId
+            if (onOpenChannel != null && channelId != null) {
+                SheetItem(Icons.Outlined.AccountBox, "Đi đến kênh") { onOpenChannel(channelId); onDismiss() }
             }
             SheetItem(Icons.Outlined.Block, "Không quan tâm") { onNotInterested(); onDismiss() }
         }

@@ -17,4 +17,6 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "TubeSach"
+include(":core")
 include(":app")
+include(":tv")

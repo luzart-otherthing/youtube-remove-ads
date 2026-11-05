@@ -42,6 +42,7 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import okhttp3.OkHttpClient
 import org.schabi.newpipe.extractor.exceptions.AgeRestrictedContentException
 import org.schabi.newpipe.extractor.exceptions.ContentNotAvailableException
 import org.schabi.newpipe.extractor.exceptions.GeographicRestrictionException
@@ -85,6 +86,14 @@ object PlaybackController {
     private lateinit var sponsorBlock: SponsorBlock
     private lateinit var dislikes: Dislikes
     private val scope = MainScope()
+
+    /** false trên TV: không chạy dịch vụ phát nền (rời app là dừng, giống YouTube trên TV). */
+    private var backgroundService = true
+
+    /** Màn hình mở ra khi bấm vào thông báo / màn hình khoá. Mỗi app (điện thoại, TV) tự đặt. */
+    var sessionActivityIntent: (Context) -> Intent = { ctx ->
+        ctx.packageManager.getLaunchIntentForPackage(ctx.packageName) ?: Intent().setPackage(ctx.packageName)
+    }
 
     private var _player: ExoPlayer? = null
     val player: ExoPlayer
@@ -130,12 +139,12 @@ object PlaybackController {
     private val backStack = ArrayDeque<VideoItem>()
     private val skippedUuids = HashSet<String>()
 
-    fun init(context: Context, localStore: LocalStore) {
+    fun init(context: Context, localStore: LocalStore, http: OkHttpClient, useBackgroundService: Boolean = true) {
         appContext = context.applicationContext
         store = localStore
+        backgroundService = useBackgroundService
         sources = StreamSourceFactory(appContext)
         tracker = WatchTracker(YouTubeRepository.innerTube)
-        val http = (appContext as com.luzart.tubesach.App).http
         sponsorBlock = SponsorBlock(http)
         dislikes = Dislikes(http)
         startTicker()
@@ -537,7 +546,7 @@ object PlaybackController {
         _loading.value = false
         _segments.value = emptyList()
         backStack.clear()
-        runCatching { appContext.stopService(Intent(appContext, PlaybackService::class.java)) }
+        if (backgroundService) runCatching { appContext.stopService(Intent(appContext, PlaybackService::class.java)) }
     }
 
     /** Khi chạy nền / tắt màn hình: chỉ tải tiếng → đỡ tốn 3G/4G và pin. */
@@ -622,6 +631,7 @@ object PlaybackController {
     }
 
     private fun ensureServiceStarted() {
+        if (!backgroundService) return
         runCatching {
             appContext.startService(Intent(appContext, PlaybackService::class.java))
         }
@@ -629,12 +639,12 @@ object PlaybackController {
 
     /** Chỉ dùng cho test giao diện (chụp ảnh màn hình). */
     @androidx.annotation.VisibleForTesting
-    internal fun showForPreview(now: NowPlaying?) {
+    fun showForPreview(now: NowPlaying?) {
         _nowPlaying.value = now
     }
 
     @androidx.annotation.VisibleForTesting
-    internal fun segmentsForPreview(list: List<Segment>) {
+    fun segmentsForPreview(list: List<Segment>) {
         _segments.value = list
     }
 
