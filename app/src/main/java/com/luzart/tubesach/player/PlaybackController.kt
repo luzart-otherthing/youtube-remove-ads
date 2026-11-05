@@ -560,7 +560,7 @@ object PlaybackController {
      */
     fun setVideoVisible(viewer: String, visible: Boolean) {
         val changed = if (visible) videoViewers.add(viewer) else videoViewers.remove(viewer)
-        if (viewer == VIEWER_CAR) _carScreenActive.value = visible
+        _carScreenActive.value = videoViewers.any { it.startsWith(VIEWER_CAR) }
         if (changed) setVideoEnabled(videoViewers.isNotEmpty())
     }
 
@@ -672,5 +672,8 @@ object PlaybackController {
 
     const val SEEK_MS = 10_000L
     const val VIEWER_PHONE = "phone"
+    /** Màn hình xem trên ô tô (Android 15+, khi đỗ xe). */
     const val VIEWER_CAR = "car"
+    /** Màn hình ô tô kiểu "ứng dụng bản đồ" (máy Android cũ). */
+    const val VIEWER_CAR_SURFACE = "car_surface"
 }

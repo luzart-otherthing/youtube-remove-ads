@@ -294,6 +294,9 @@ fun SettingsScreen(vm: AppViewModel, pipSupported: Boolean) {
             ActionRow("Xoá nhật ký tìm kiếm", null) { vm.store.clearRecentSearches() }
             YtDivider()
 
+            AndroidAutoSection()
+            YtDivider()
+
             Section("Giới thiệu")
             ActionRow("Kiểm tra bản cập nhật", vm.updateMessage ?: vm.update?.let { "Có bản mới ${it.version}" }) { vm.checkUpdate(manual = true) }
             Text(
@@ -323,6 +326,43 @@ fun SettingsScreen(vm: AppViewModel, pipSupported: Boolean) {
         }
         "reset" -> ConfirmDialog("Xoá dữ liệu đề xuất?", "Trang chủ sẽ trống cho đến khi bạn xem thêm video.", { dialog = null }) { vm.resetRecommendations() }
         "history" -> ConfirmDialog("Xoá nhật ký xem?", "Danh sách video đã xem trên máy này sẽ bị xoá.", { dialog = null }) { vm.store.clearHistory() }
+    }
+}
+
+/**
+ * Mục "Ô tô (Android Auto)": cho biết Android Auto đã nhận Tube Sạch chưa, và nút cài lại một lần
+ * để xem được video trên màn hình xe (giống cách AAAD cài CarStream).
+ */
+@Composable
+private fun AndroidAutoSection() {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    var refresh by remember { mutableStateOf(0) }
+    androidx.lifecycle.compose.LifecycleResumeEffect(Unit) {
+        refresh++
+        onPauseOrDispose { }
+    }
+    val trusted = remember(refresh) { com.luzart.tubesach.update.PlayInstaller.isTrusted(context) }
+    var error by remember { mutableStateOf<String?>(null) }
+    Section("Ô tô (Android Auto)")
+    when {
+        trusted -> ActionRow(
+            "Đã sẵn sàng cho Android Auto",
+            "Cắm điện thoại vào xe, mở danh sách ứng dụng trên màn hình xe rồi chọn “Tube Sạch Video” (xem hình khi đỗ xe) hoặc “Tube Sạch” (nghe).",
+        ) { }
+        com.luzart.tubesach.update.PlayInstaller.supported -> ActionRow(
+            "Cài để hiện trên Android Auto",
+            error ?: "Bấm vào đây rồi bấm “Cài đặt”. Tube Sạch được cài lại (giữ nguyên lịch sử, kênh đăng ký) để màn hình ô tô hiện được video. Chỉ cần làm một lần. Nếu điện thoại hỏi, hãy cho phép Tube Sạch cài ứng dụng.",
+        ) {
+            error = com.luzart.tubesach.update.PlayInstaller.reinstallSelf(context).exceptionOrNull()?.let { "Không mở được trình cài đặt. Thử lại sau." }
+        }
+        android.os.Build.VERSION.SDK_INT >= 35 -> ActionRow(
+            "Dùng trên Android Auto",
+            "Bật “Nguồn không xác định” trong cài đặt dành cho nhà phát triển của Android Auto. Trên xe: “Tube Sạch Video” để xem khi đỗ xe, “Tube Sạch” để nghe khi lái.",
+        ) { }
+        else -> ActionRow(
+            "Dùng trên Android Auto",
+            "Bật “Nguồn không xác định” trong cài đặt dành cho nhà phát triển của Android Auto. Trên Android 14, xe chỉ cho mở “Tube Sạch” để chọn video và nghe tiếng.",
+        ) { }
     }
 }
 

@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Màn hình xem video kiểu ứng dụng bản đồ trên Android Auto: dùng cho máy Android 14 trở xuống. -->
+    <bool name="car_template_video">true</bool>
+</resources>

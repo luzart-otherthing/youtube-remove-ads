@@ -134,6 +134,10 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.9.4")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.9.4")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
+    // Android Auto cho máy Android cũ (≤ 14): màn hình kiểu ứng dụng bản đồ, vẽ video lên màn hình xe
+    implementation("androidx.car.app:app:1.7.0")
+    implementation("androidx.car.app:app-projected:1.7.0")
+    testImplementation("androidx.car.app:app-testing:1.7.0")
     // Chuyển coroutine ↔ ListenableFuture cho thư viện Android Auto (MediaLibraryService)
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-guava:1.10.2")
 

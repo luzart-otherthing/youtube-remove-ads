@@ -42,7 +42,7 @@
 - **Return YouTube Dislike**: hiện lại số lượt không thích.
 - Ẩn Shorts; cỡ chữ lớn cho người lớn tuổi.
 - Mở link YouTube được chia sẻ từ Zalo/Facebook; tự kiểm tra bản cập nhật.
-- **Dùng trên ô tô (Android Auto)**: xem video có hình khi đỗ xe, nghe tiếng và chọn video khi đang chạy. Xem [hướng dẫn](#dùng-trên-ô-tô-android-auto).
+- **Dùng trên ô tô (Android Auto)**, kể cả điện thoại Android 11: xem video có hình khi đỗ xe, nghe tiếng và chọn video khi đang chạy. Xem [hướng dẫn](#dùng-trên-ô-tô-android-auto).
 
 ## Đề xuất tiếng Việt mà không cần đăng nhập
 
@@ -79,52 +79,84 @@ Một số máy (Xiaomi, Oppo, Vivo, Samsung) có chế độ tiết kiệm pin 
 
 ## Dùng trên ô tô (Android Auto)
 
-Cắm điện thoại vào xe (hoặc kết nối Android Auto không dây), Tube Sạch hiện trên màn hình xe theo **2 cách**:
+Cắm điện thoại vào xe (hoặc kết nối Android Auto không dây). Trên màn hình xe, Tube Sạch có 2 biểu tượng:
 
-| | Xem video có hình | Nghe tiếng + chọn video |
+- **Tube Sạch Video**: xem video có hình, **chỉ khi xe đứng yên**.
+- **Tube Sạch**: chọn video và nghe tiếng, dùng được cả khi xe đang chạy.
+
+| | Tube Sạch Video (xem hình) | Tube Sạch (nghe) |
 |---|---|---|
-| Khi nào | **Xe đang đỗ** | Mọi lúc, kể cả khi đang chạy |
-| Điện thoại cần | Android **15** trở lên | Mọi máy chạy được Android Auto |
-| Mở ở đâu | Danh sách ứng dụng của Android Auto → **Tube Sạch** | Danh sách ứng dụng → Tube Sạch (biểu tượng nghe nhạc) |
-| Có gì | Giống YouTube: Trang chủ, Tìm kiếm (gõ chữ, bấm micro để nói, hoặc bấm chủ đề gợi ý), Kênh đăng ký, Đã xem (xem tiếp chỗ đang dở), Thư viện (Xem sau, Đã thích, Thịnh hành, Nhạc hàng đầu). Video to, nút to, chạm 2 lần để tua ±10 giây, cột "Video tiếp theo" | Các mục Trang chủ / Kênh đăng ký / Đã xem / Thư viện có ảnh thu nhỏ, ô tìm kiếm, "Ok Google, mở *nhạc bolero* trên Tube Sạch", nút lùi/tới 10 giây và video tiếp theo |
+| Điện thoại **Android 13 trở xuống** (ví dụ Android 11) | Có, giống CarStream | Có |
+| Điện thoại Android 14 | Không (Android Auto chưa cho) | Có |
+| Điện thoại Android 15 trở lên | Có, cách chính thức của Google | Có |
 
-Không có quảng cáo ở cả hai cách. Lịch sử, kênh đăng ký và danh sách Xem sau dùng chung với điện thoại.
+Không có quảng cáo ở mọi cách. Lịch sử, kênh đăng ký và danh sách Xem sau dùng chung với điện thoại.
+
+**Xe chạy thì sao?** Hình tự tắt, video vẫn phát tiếng. Điều khiển bằng nút trên vô lăng, giọng nói hoặc biểu tượng "Tube Sạch". Xe dừng hẳn khoảng 3 giây thì hình hiện lại. App biết xe đứng yên nhờ đọc tốc độ xe (hoặc GPS); nếu không đọc được tốc độ thì app coi như xe đang chạy và chỉ phát tiếng. Người lái đừng xem video khi đang lái.
+
+### Máy Android 13 trở xuống (ví dụ Android 11) – giống CarStream
+
+Màn hình xe hiện các mục bằng giao diện chuẩn của Android Auto: lưới video có ảnh, **Tìm kiếm** (bàn phím của xe hoặc nói), **Mục khác** (Kênh đăng ký, Đã xem, Xem sau, Đã thích, Thịnh hành, Nhạc hàng đầu). Khi xem video:
+
+- hình chiếm cả màn hình, có tiêu đề, thời gian và thanh tiến độ;
+- nút **Quay lại**, **⏯** (phát/dừng), **⏭** (video tiếp theo), **☰** (danh sách video tiếp theo);
+- nút **⏪ / ⏩** (lùi/tới 10 giây);
+- chạm vào video để phát/dừng.
+
+Cách làm giống CarStream: Android Auto chỉ cho ứng dụng **bản đồ** vẽ lên màn hình xe, nên Tube Sạch Video khai là ứng dụng bản đồ rồi vẽ video vào chỗ bản đồ.
+
+**Cài (làm một lần trên điện thoại):**
+
+1. Cài Tube Sạch như bình thường (xem phần trên).
+2. Mở Tube Sạch → **Bạn** → **Cài đặt** → mục **Ô tô (Android Auto)** → bấm **Cài để hiện trên Android Auto** → bấm **Cài đặt**.
+   - Nếu điện thoại báo "không được phép cài ứng dụng từ nguồn này", bấm **Cài đặt**, bật **Cho phép từ nguồn này**, quay lại rồi bấm lần nữa.
+   - Tube Sạch được cài lại đúng bản đang dùng, **không mất** lịch sử hay kênh đăng ký.
+3. Dòng đó đổi thành **Đã sẵn sàng cho Android Auto** là xong.
+4. Cắm điện thoại vào xe. Trên màn hình xe, mở danh sách ứng dụng → **Tube Sạch Video**.
+   - Lần đầu xem video, bấm **Bật hình** rồi cho phép **tốc độ xe** và **vị trí** (bấm trên điện thoại).
+   - Nếu chưa thấy biểu tượng: Cài đặt Android Auto → **Tuỳ chỉnh trình chạy** (*Customize launcher*) → đánh dấu Tube Sạch Video.
+
+**Vì sao phải "cài lại"?** Android Auto chỉ hiện ứng dụng bản đồ "tải từ CH Play". Nút "Nguồn không xác định" trong cài đặt Android Auto không áp dụng cho loại này. Bước 2 làm giống công cụ [AAAD](https://github.com/shmykelsa/AAAD) (dùng để cài CarStream): mở trình cài đặt của Android và ghi nguồn cài là CH Play. App không tải gì từ CH Play. Android 14 trở lên bỏ qua thông tin này, nên cách này chỉ dùng được đến Android 13.
+
+**Cập nhật:** hãy cập nhật bằng thẻ **"Có phiên bản mới"** ngay trong app; bản mới được cài theo cách trên nên vẫn hiện trên xe. Nếu cài bản mới bằng file tải từ trình duyệt, làm lại bước 2.
+
+### Máy Android 15 trở lên
+
+**Tube Sạch Video** là màn hình chính thức của Android Auto cho ứng dụng dùng khi đỗ xe:
+
+- giao diện giống YouTube với Trang chủ, Tìm kiếm (gõ chữ, bấm micro để nói, hoặc bấm chủ đề gợi ý), Kênh đăng ký, Đã xem (xem tiếp chỗ đang dở), Thư viện;
+- video to, nút to, chạm 2 lần để tua ±10 giây.
+
+Xe chạy thì Android Auto tự đóng màn hình này.
 
 | Trang chủ trên xe | Tìm kiếm | Xem video |
 |---|---|---|
 | ![](docs/screenshots/20_o_to_trang_chu.png) | ![](docs/screenshots/21_o_to_tim_kiem.png) | ![](docs/screenshots/22_o_to_xem_video.png) |
 
-**Vì sao xe chạy thì chỉ có tiếng?** Đây là quy định an toàn của Android Auto: khi xe chuyển bánh, Android Auto tự đóng màn hình xem video. Video vẫn phát tiếp bằng âm thanh, điều khiển được bằng nút trên vô lăng hoặc giọng nói; xe dừng hẳn thì mở lại Tube Sạch để xem tiếp có hình. App không lách quy định này. Người lái xe đừng xem video khi đang lái.
+**Cài:** bật **Nguồn không xác định** trong Android Auto (các bước ở phần tiếp theo).
 
-### Cài lên xe (làm một lần trên điện thoại)
+### Bật "Nguồn không xác định" trong Android Auto (cho mục nghe, và máy Android 15+)
 
-Android Auto chỉ hiện ứng dụng tải từ CH Play. Tube Sạch được cài bằng file APK nên phải bật một tuỳ chọn ẩn:
+1. Cài đặt điện thoại → Ứng dụng → Android Auto → *Cài đặt bổ sung trong ứng dụng* (một số máy mở thẳng app Android Auto).
+2. Kéo xuống dưới cùng, bấm **Phiên bản** (*Version and permission info*) **10 lần**, rồi bấm **OK**.
+3. Bấm **⋮** góc trên bên phải → **Cài đặt dành cho nhà phát triển** → bật **Nguồn không xác định** (*Unknown sources*).
+4. Rút cáp ra cắm lại.
 
-1. Cài Tube Sạch như bình thường (xem phần trên).
-2. Mở **Cài đặt Android Auto**: Cài đặt điện thoại → Ứng dụng → Android Auto → *Cài đặt bổ sung trong ứng dụng*. Trên một số máy có thể mở thẳng app Android Auto.
-3. Kéo xuống dưới cùng, bấm **Phiên bản** (*Version and permission info*) **10 lần** liền, rồi bấm **OK** ở câu hỏi "Cho phép cài đặt dành cho nhà phát triển?".
-4. Bấm nút **⋮** góc trên bên phải → **Cài đặt dành cho nhà phát triển** (*Developer settings*) → bật **Nguồn không xác định** (*Unknown sources*).
-5. Rút cáp ra cắm lại (hoặc tắt/bật kết nối xe). Trên màn hình xe, bấm biểu tượng ô vuông (danh sách ứng dụng) → **Tube Sạch**.
-6. Nếu chưa thấy: trong Cài đặt Android Auto → **Tuỳ chỉnh trình chạy** (*Customize launcher*) → đánh dấu Tube Sạch.
+Máy đã làm bước "Cài để hiện trên Android Auto" ở trên thì không cần bước này: Android Auto đã coi Tube Sạch như app tải từ CH Play.
 
-Khi cập nhật Android Auto, tuỳ chọn ở bước 4 đôi khi tự tắt; làm lại bước 2–4 là được.
+### Ghi chú
 
-**Vẫn không hiện?** Một số máy (Xiaomi, Oppo, Vivo…) hoặc bản Android Auto mới chặn chặt hơn. Khi đó cài lại Tube Sạch từ máy tính để Android Auto coi như cài từ CH Play (không mất dữ liệu):
+- Một số máy Xiaomi, Oppo, Vivo dùng trình cài đặt riêng. Trên các máy này, bước "Cài để hiện trên Android Auto" có thể không có tác dụng. Khi đó báo lại để tìm cách khác.
+- Để chạy được trên xe khi đỗ (Android 15+), Tube Sạch tự khai là ứng dụng "trò chơi", nhóm duy nhất Android Auto cho phép. Vì vậy một số máy (ví dụ Samsung *Game Launcher*) có thể xếp Tube Sạch vào mục Trò chơi. Không ảnh hưởng gì.
+- Quyền vị trí chỉ dùng để đo tốc độ khi xe không gửi tốc độ. App không lưu và không gửi vị trí đi đâu.
+- Mục "Tube Sạch" (nghe) hỗ trợ tìm bằng giọng nói: "Ok Google, mở *nhạc bolero* trên Tube Sạch".
 
-1. Trên điện thoại bật *Tuỳ chọn nhà phát triển → Gỡ lỗi USB*, cắm vào máy tính có [Android platform-tools](https://developer.android.com/tools/releases/platform-tools).
-2. Chạy lệnh (đổi tên file cho đúng bản đã tải):
-
-```bash
-adb install -r -i com.android.vending TubeSach-2.0.x.apk
-```
-
-**Ghi chú**
-- Muốn xem có hình trên xe cần điện thoại Android 15 trở lên: Android Auto chỉ cho phép ứng dụng chạy trên màn hình xe khi đỗ từ Android 15. Máy cũ hơn vẫn dùng được cách "nghe tiếng + chọn video".
-- Để Android Auto cho chạy khi đỗ xe, Tube Sạch tự khai là ứng dụng thuộc nhóm "trò chơi" (đây là nhóm duy nhất Android Auto cho phép). Vì vậy một số máy (ví dụ Samsung *Game Launcher*) có thể xếp Tube Sạch vào mục Trò chơi. Không ảnh hưởng gì.
-- Bấm nút micro trên màn hình xe lần đầu, điện thoại sẽ hỏi quyền micro: chấp nhận trên **điện thoại**.
-- Màn hình xe luôn dùng giao diện tối. Cỡ chữ theo *Cài đặt → Cỡ chữ* trong app.
-
-**Đã tìm hiểu:** [tài liệu Android for Cars](https://developer.android.com/training/cars/parked/auto) (ứng dụng khi đỗ xe, mục Media), [Fermata Auto](https://github.com/AndreyPavlenko/Fermata) và [AndroidAutoMaker](https://github.com/malebuffy/AndroidAutoMaker). Hai dự án này chiếu video kể cả khi xe chạy bằng cách giả làm ứng dụng bản đồ hoặc chiếu lại cả màn hình điện thoại, phải cài qua máy tính và có thể hỏng sau mỗi lần Android Auto cập nhật. Tube Sạch chỉ dùng hai cách chính thức ở trên.
+**Đã tìm hiểu:**
+- [Tài liệu Android for Cars](https://developer.android.com/training/cars/parked/auto) về ứng dụng khi đỗ xe, mục Media và [dữ liệu xe](https://developer.android.com/training/cars/apps/library/car-hardware-api).
+- Mã nguồn [CarStream](https://github.com/krisstakos/Carstream-update-2.0.4): dùng bộ công cụ Android Auto cũ, không chính thức.
+- [Fermata Auto](https://github.com/AndreyPavlenko/Fermata): giả làm ứng dụng bản đồ; Tube Sạch Video làm theo cách này.
+- [AAAD](https://github.com/shmykelsa/AAAD): cách cài để Android Auto nhận app.
+- [AndroidAutoMaker](https://github.com/malebuffy/AndroidAutoMaker).
 
 ## Khi YouTube thay đổi làm app lỗi
 
@@ -154,7 +186,10 @@ app/src/main/java/com/luzart/tubesach/
 ├── player/         PlaybackController (chất lượng, tốc độ, lặp, phụ đề, SponsorBlock, hẹn giờ),
 │                   PlaybackService (phát nền + thư viện cho Android Auto), SessionPlayer (nhận lệnh phát từ xe)
 ├── auto/           CarLibrary (các mục trên màn hình xe, tìm kiếm, giọng nói), ArtworkProvider (ảnh thu nhỏ cho xe)
-├── car/            CarActivity + CarScreens (giao diện xem video trên màn hình ô tô khi đỗ xe)
+├── car/            CarActivity + CarScreens (xem video trên ô tô khi đỗ xe – điện thoại Android 15+)
+├── carapp/         TubeCarApp (Android Auto kiểu ứng dụng bản đồ – điện thoại Android 13 trở xuống),
+│                   VideoSurfaceRenderer (vẽ video lên màn hình xe), ParkingGate (chỉ hiện hình khi xe đứng yên)
+├── update/         UpdateChecker (bản mới trên GitHub), PlayInstaller (cài để Android Auto nhận)
 └── ui/             TubeApp (khung chính), screens/ (Trang chủ, Shorts, Kênh đăng ký, Bạn, Tìm kiếm, Kênh, Xem, Cài đặt),
                     player/ (lớp điều khiển, thanh tua, bảng ⚙, trình phát mini), theme/ (màu sáng/tối)
 ```

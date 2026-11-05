@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Android 15+: dùng màn hình chính thức khi đỗ xe (CarActivity) nên tắt chế độ bản đồ. -->
+    <bool name="car_template_video">false</bool>
+</resources>

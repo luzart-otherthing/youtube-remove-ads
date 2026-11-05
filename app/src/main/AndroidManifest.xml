@@ -8,8 +8,18 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Cài bản cập nhật / cài lại để Android Auto nhận (xem update/PlayInstaller.kt) -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <!-- Tìm bằng giọng nói trên màn hình ô tô (chỉ hỏi khi bấm nút micro) -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <!-- Android Auto trên máy Android cũ: màn hình kiểu ứng dụng bản đồ để vẽ video lên màn hình xe -->
+    <uses-permission android:name="androidx.car.app.NAVIGATION_TEMPLATES" />
+    <uses-permission android:name="androidx.car.app.ACCESS_SURFACE" />
+    <!-- Đọc tốc độ xe: chỉ hiện hình khi xe đứng yên -->
+    <uses-permission android:name="com.google.android.gms.permission.CAR_SPEED" />
+    <!-- Dự phòng khi xe không gửi tốc độ: đo tốc độ bằng GPS (không lưu, không gửi đi đâu) -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
 
     <queries>
         <!-- Tìm kiếm bằng giọng nói -->
@@ -90,7 +100,7 @@
         <activity
             android:name=".car.CarActivity"
             android:exported="true"
-            android:label="@string/app_name"
+            android:label="@string/car_video_label"
             android:launchMode="singleTask"
             android:taskAffinity="${applicationId}.car"
             android:excludeFromRecents="true"
@@ -115,6 +125,36 @@
                 <action android:name="android.media.browse.MediaBrowserService" />
             </intent-filter>
         </service>
+
+        <!--
+            Xem video trên Android Auto cho điện thoại Android 14 trở xuống (ví dụ Android 11).
+            Android Auto chỉ cho "ứng dụng dẫn đường" vẽ lên màn hình xe, nên dịch vụ này khai là dẫn đường
+            và vẽ video vào chỗ bản đồ (giống CarStream / Fermata Auto). Hình chỉ hiện khi xe đứng yên.
+        -->
+        <service
+            android:name=".carapp.TubeCarAppService"
+            android:enabled="@bool/car_template_video"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher"
+            android:label="@string/car_video_label">
+            <intent-filter>
+                <action android:name="androidx.car.app.CarAppService" />
+                <category android:name="androidx.car.app.category.NAVIGATION" />
+            </intent-filter>
+        </service>
+        <meta-data
+            android:name="androidx.car.app.minCarApiLevel"
+            android:value="1" />
+
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.files"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
 
         <!-- Ảnh thu nhỏ cho Android Auto (xe chỉ đọc ảnh qua content://) -->
         <provider

@@ -243,12 +243,16 @@ fun HomeScreen(vm: AppViewModel, onOpenUpdate: (String) -> Unit) {
                                 .padding(12.dp)
                                 .clip(RoundedCornerShape(12.dp))
                                 .background(yt.chip)
-                                .clickable { onOpenUpdate(info.downloadUrl) }
+                                .clickable { vm.installUpdate(onOpenUpdate) }
                                 .padding(16.dp),
                         ) {
                             Column {
                                 Text("Có phiên bản mới ${info.version}", color = yt.text, style = MaterialTheme.typography.titleSmall)
-                                Text("Nhấn để tải về và cài đặt", color = yt.textSecondary, style = MaterialTheme.typography.bodySmall)
+                                Text(
+                                    if (vm.downloadingUpdate) "Đang tải về…" else "Nhấn để tải về và cài đặt",
+                                    color = yt.textSecondary,
+                                    style = MaterialTheme.typography.bodySmall,
+                                )
                             }
                         }
                     }

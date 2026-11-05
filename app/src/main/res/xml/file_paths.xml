@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- File APK đưa cho trình cài đặt (cài lại cho Android Auto / bản cập nhật). -->
+<paths>
+    <cache-path name="install" path="install/" />
+</paths>

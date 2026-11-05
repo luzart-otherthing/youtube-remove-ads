@@ -1,5 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Android Auto: Tube Sạch có mục Media (danh sách video, nghe tiếng khi lái xe). -->
+<!--
+    Android Auto:
+    - media: mục nghe (danh sách video, nghe tiếng khi lái xe) – mọi điện thoại;
+    - template: màn hình xem video kiểu ứng dụng bản đồ (TubeCarAppService) – cho điện thoại Android cũ.
+-->
 <automotiveApp>
     <uses name="media" />
+    <uses name="template" />
 </automotiveApp>

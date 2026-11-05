@@ -481,6 +481,37 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /** Đang tải bản cập nhật (hiện "Đang tải…" trên thẻ cập nhật). */
+    var downloadingUpdate by mutableStateOf(false)
+        private set
+
+    /**
+     * Tải bản mới ngay trong app rồi mở trình cài đặt. Cài theo cách này (nguồn cài: CH Play) để
+     * Android Auto vẫn hiện Tube Sạch sau khi cập nhật. Lỗi thì mở trình duyệt như trước ([fallback]).
+     */
+    fun installUpdate(fallback: (String) -> Unit) {
+        val info = update ?: return
+        if (downloadingUpdate) return
+        downloadingUpdate = true
+        viewModelScope.launch {
+            val ctx = getApplication<App>()
+            val file = runCatching {
+                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    val dir = java.io.File(ctx.cacheDir, "install").apply { mkdirs() }
+                    val out = java.io.File(dir, "TubeSach-update.apk")
+                    http.newCall(okhttp3.Request.Builder().url(info.downloadUrl).build()).execute().use { r ->
+                        if (!r.isSuccessful) throw IOException("HTTP ${r.code}")
+                        out.outputStream().use { o -> r.body!!.byteStream().copyTo(o) }
+                    }
+                    out
+                }
+            }.getOrNull()
+            downloadingUpdate = false
+            val ok = file != null && runCatching { com.luzart.tubesach.update.PlayInstaller.install(ctx, file) }.isSuccess
+            if (!ok) fallback(info.downloadUrl)
+        }
+    }
+
     fun resetRecommendations() {
         YouTubeRepository.innerTube.resetVisitor()
         home = FeedState()
