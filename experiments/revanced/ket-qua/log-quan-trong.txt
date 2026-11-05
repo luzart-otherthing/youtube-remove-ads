@@ -1,0 +1,31 @@
+# Log quan trọng – ReVanced không microG (lượt chạy 7, Android 15 + Google Play Services 24.23.35)
+
+## Lần mở đầu
+11-05 05:04:10.154  5141  5141 W YouTube : java.lang.SecurityException: GoogleCertificatesRslt: not allowed: pkg=app.revanced.android.youtube, sha256=[1b1183e21d12e2b7e42b5be4b5cdb14f86c40c90d2b4729074387b871fed5799], atk=false, ver=242335041.true (go/gsrlt)
+11-05 05:04:13.350  1224  2395 E DatabaseUtils: java.lang.SecurityException: GoogleCertificatesRslt: not allowed: pkg=app.revanced.android.youtube, sha256=[1b1183e21d12e2b7e42b5be4b5cdb14f86c40c90d2b4729074387b871fed5799], atk=false, ver=242335041.true (go/gsr
+11-05 05:04:13.361  5141  5141 E Auth    : java.lang.SecurityException: GoogleCertificatesRslt: not allowed: pkg=app.revanced.android.youtube, sha256=[1b1183e21d12e2b7e42b5be4b5cdb14f86c40c90d2b4729074387b871fed5799], atk=false, ver=242335041.true (go/gsrlt)
+11-05 05:04:14.138  5141  5141 E YouTube : Failed to fetch kids onboarding status, finishing the App.
+11-05 05:04:17.074  5141  5176 E GoogleApiManager: java.lang.SecurityException: PackageVerificationRslt: not allowed: pkg=app.revanced.android.youtube, sha256=[1b1183e21d12e2b7e42b5be4b5cdb14f86c40c90d2b4729074387b871fed5799], atk=false, ver=242335041.true
+11-05 05:04:17.110  5141  5196 W YouTube : Invalid playback type; streaming data is not playable
+11-05 05:04:20.526  5141  5372 W MobStoreFlagStore: java.util.concurrent.ExecutionException: java.lang.SecurityException: GoogleCertificatesRslt: not allowed: pkg=app.revanced.android.youtube, sha256=[1b1183e21d12e2b7e42b5be4b5cdb14f86c40c90d2b4729074387b871fe
+11-05 05:04:20.526  5141  5372 W MobStoreFlagStore: Caused by: java.lang.SecurityException: GoogleCertificatesRslt: not allowed: pkg=app.revanced.android.youtube, sha256=[1b1183e21d12e2b7e42b5be4b5cdb14f86c40c90d2b4729074387b871fed5799], atk=false, ver=2423350
+11-05 05:04:25.549  5141  5413 E AndroidRuntime: FATAL EXCEPTION: DG
+11-05 05:04:25.549  5141  5413 E AndroidRuntime: Process: app.revanced.android.youtube, PID: 5141
+11-05 05:04:25.549  5141  5413 E AndroidRuntime: java.lang.SecurityException: PackageVerificationRslt: not allowed: pkg=app.revanced.android.youtube, sha256=[1b1183e21d12e2b7e42b5be4b5cdb14f86c40c90d2b4729074387b871fed5799], atk=false, ver=242335041.true
+
+## Mở lại lần 2
+11-05 05:05:24.972  6094  6130 E GoogleApiManager: java.lang.SecurityException: PackageVerificationRslt: not allowed: pkg=app.revanced.android.youtube, sha256=[1b1183e21d12e2b7e42b5be4b5cdb14f86c40c90d2b4729074387b871fed5799], atk=false, ver=242335041.true
+11-05 05:05:27.450  6094  6094 W YouTube : Invalid playback type; streaming data is not playable
+11-05 05:05:27.830  1224  2395 E DatabaseUtils: java.lang.SecurityException: GoogleCertificatesRslt: not allowed: pkg=app.revanced.android.youtube, sha256=[1b1183e21d12e2b7e42b5be4b5cdb14f86c40c90d2b4729074387b871fed5799], atk=false, ver=242335041.true (go/gsr
+11-05 05:05:27.842  6094  6094 E Auth    : java.lang.SecurityException: GoogleCertificatesRslt: not allowed: pkg=app.revanced.android.youtube, sha256=[1b1183e21d12e2b7e42b5be4b5cdb14f86c40c90d2b4729074387b871fed5799], atk=false, ver=242335041.true (go/gsrlt)
+11-05 05:05:28.840  6094  6094 E YouTube : Failed to fetch kids onboarding status, finishing the App.
+11-05 05:05:36.514  6094  6401 E AndroidRuntime: FATAL EXCEPTION: DG
+11-05 05:05:36.514  6094  6401 E AndroidRuntime: Process: app.revanced.android.youtube, PID: 6094
+11-05 05:05:36.514  6094  6401 E AndroidRuntime: java.lang.SecurityException: PackageVerificationRslt: not allowed: pkg=app.revanced.android.youtube, sha256=[1b1183e21d12e2b7e42b5be4b5cdb14f86c40c90d2b4729074387b871fed5799], atk=false, ver=242335041.true
+11-05 05:06:02.745  6469  6579 E FirstPartyBroadcaster: java.lang.SecurityException: GoogleCertificatesRslt: callingPackage not found (go/gsrlt)
+
+# ReVanced chuẩn (cần microG)
+11-05 05:06:29.145  7406  7406 I revanced: GmsCoreSupport: GmsCore was not found
+11-05 05:06:29.173  7406  7406 I revanced: GmsCoreSupport: Opening link: https://github.com/revanced/gmscore/releases/latest
+11-05 05:06:29.236  7406  7406 E YouTube : 	at app.revanced.extension.shared.GmsCoreSupport$GmsCore.open(GmsCoreSupport.java:275)
+11-05 05:06:29.236  7406  7406 E YouTube : 	at app.revanced.extension.shared.GmsCoreSupport$GmsCore.checkInstallation(GmsCoreSupport.java:176)

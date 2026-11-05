@@ -13,7 +13,9 @@ on:
   push:
     branches: ["claude/**"]
     paths:
-      - "experiments/revanced/**"
+      # Chỉ chạy khi mã thử nghiệm đổi (không chạy lại khi chỉ cập nhật ảnh/kết quả trong ket-qua/).
+      - "experiments/revanced/*.sh"
+      - "experiments/revanced/*.py"
       - ".github/workflows/revanced-experiment.yml"
 
 permissions:
