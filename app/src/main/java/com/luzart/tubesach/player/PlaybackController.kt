@@ -345,6 +345,7 @@ object PlaybackController {
                         )
                         if (fresh) autoSelectCaption(data.captions)
                         tracker.begin(data, startPositionMs)
+                        trackForAccount(data.videoId)
                         sources.buildDirect(data, metadataOf(item), subtitleConfig())
                     } else null
                 } else null
@@ -476,6 +477,15 @@ object PlaybackController {
                 }
             }.filter { known.add(it.id) }
             _nowPlaying.value = now.copy(related = now.related + more, relatedContinuation = page.continuation)
+        }
+    }
+
+    /** Đã đăng nhập: ghi video vào lịch sử xem của tài khoản Google (nếu bật "Đề xuất theo video đã xem"). */
+    private fun trackForAccount(videoId: String) {
+        if (!YouTubeRepository.signedIn || !store.settings.value.personalize) return
+        scope.launch {
+            val (playback, watchtime) = runCatching { YouTubeRepository.accountTracking(videoId) }.getOrNull() ?: return@launch
+            tracker.useAccountUrls(videoId, playback, watchtime)
         }
     }
 
@@ -875,6 +885,7 @@ object PlaybackController {
             availableHeights = q.data.availableHeights,
         )
         tracker.begin(q.data, 0)
+        trackForAccount(q.data.videoId)
         applyQuality()
         store.addToHistory(q.video, 0)
         startWatchJob(q.video.id, 0)

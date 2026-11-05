@@ -231,6 +231,17 @@ class LocalStore(context: Context) {
         prefs.edit().putString("subscriptions", arr.toString()).apply()
     }
 
+    /** Thêm các kênh (ví dụ kênh đã đăng ký trong tài khoản Google) – kênh đã có thì giữ nguyên. */
+    fun addSubscriptions(channels: List<ChannelRef>) {
+        val known = _subscriptions.value.mapTo(HashSet()) { it.id }
+        val added = channels.filter { known.add(it.id) }
+        if (added.isEmpty()) return
+        _subscriptions.value = _subscriptions.value + added
+        val arr = JSONArray()
+        _subscriptions.value.forEach { arr.put(it.toJson()) }
+        prefs.edit().putString("subscriptions", arr.toString()).apply()
+    }
+
     private fun loadChannels(): List<ChannelRef> = runCatching {
         val arr = JSONArray(prefs.getString("subscriptions", "[]"))
         (0 until arr.length()).map { ChannelRef.fromJson(arr.getJSONObject(it)) }

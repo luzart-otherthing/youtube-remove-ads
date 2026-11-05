@@ -1,6 +1,7 @@
 package com.luzart.tubesach.data
 
 import android.util.Xml
+import com.luzart.tubesach.account.AccountInfo
 import com.luzart.tubesach.innertube.InnerTube
 import com.luzart.tubesach.innertube.Parser
 import com.luzart.tubesach.innertube.PlayerData
@@ -181,6 +182,63 @@ object YouTubeRepository {
     suspend fun shortsSeed(): List<ShortItem> {
         val page = runCatching { search("shorts việt nam") }.getOrNull() ?: return emptyList()
         return page.entries.filterIsInstance<FeedEntry.ShortsShelf>().flatMap { it.shorts }
+    }
+
+    // ------------------------------------------------------------ Tài khoản Google (thử nghiệm)
+
+    val signedIn: Boolean get() = innerTube.signedIn
+
+    suspend fun accountInfo(): AccountInfo? = io { Parser.accountInfo(innerTube.accountMenu()) }
+
+    /** Các kênh tài khoản đã đăng ký (tối đa ~10 trang). */
+    suspend fun accountChannels(): List<ChannelRef> = io {
+        val out = LinkedHashMap<String, ChannelRef>()
+        var (list, token) = Parser.accountChannels(innerTube.browse(browseId = "FEchannels"))
+        list.forEach { out[it.id] = it }
+        var pages = 0
+        while (token != null && pages++ < 10) {
+            val r = Parser.accountChannels(innerTube.browse(continuation = token))
+            r.first.forEach { out[it.id] = it }
+            token = r.second
+        }
+        out.values.toList()
+    }
+
+    /** Video mới từ các kênh đã đăng ký của tài khoản (giống tab "Kênh đăng ký" của YouTube). */
+    suspend fun accountSubscriptionFeed(): FeedPage = io { Parser.browseGrid(innerTube.browse(browseId = "FEsubscriptions")) }
+
+    suspend fun setSubscribed(channelId: String, subscribed: Boolean) {
+        io { innerTube.subscribe(channelId, subscribed) }
+    }
+
+    /** [action]: "like", "dislike" hoặc "removelike". */
+    suspend fun rate(videoId: String, action: String) {
+        io { innerTube.rate(videoId, action) }
+    }
+
+    private val createParams = HashMap<String, String>()
+
+    /** Đăng bình luận bằng tài khoản. Ném lỗi nếu YouTube không cho phép (tắt bình luận…). */
+    suspend fun postComment(videoId: String, text: String) = io {
+        val params = createParams[videoId] ?: run {
+            val token = Parser.commentsToken(innerTube.next(videoId = videoId))
+                ?: throw IllegalStateException("Video này đã tắt bình luận")
+            Parser.createCommentParams(innerTube.next(continuation = token))
+                ?: throw IllegalStateException("Không bình luận được (chưa đăng nhập hoặc video đã tắt bình luận)")
+        }.also { createParams[videoId] = it }
+        val r = innerTube.createComment(params, text)
+        val status = findStatus(r)
+        if (status != null && status != "STATUS_SUCCEEDED") throw IllegalStateException("YouTube không nhận bình luận")
+    }
+
+    private fun findStatus(json: org.json.JSONObject): String? =
+        json.optJSONArray("actionResults")?.optJSONObject(0)?.optString("status")?.ifEmpty { null }
+
+    /** Link thống kê lượt xem gắn với tài khoản (để ghi lịch sử xem). */
+    suspend fun accountTracking(videoId: String): Pair<String?, String?> = io {
+        val j = innerTube.webPlayer(videoId).optJSONObject("playbackTracking")
+        j?.optJSONObject("videostatsPlaybackUrl")?.optString("baseUrl")?.ifEmpty { null } to
+            j?.optJSONObject("videostatsWatchtimeUrl")?.optString("baseUrl")?.ifEmpty { null }
     }
 
     // ------------------------------------------------------------ Kênh đăng ký (RSS)

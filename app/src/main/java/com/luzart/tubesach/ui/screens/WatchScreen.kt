@@ -37,6 +37,10 @@ import androidx.compose.material.icons.outlined.ThumbDown
 import androidx.compose.material.icons.outlined.ThumbUp
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
@@ -219,7 +223,7 @@ private fun WatchDetails(vm: AppViewModel, now: NowPlaying, onDescription: () ->
                 }
                 Spacer(Modifier.weight(1f))
                 if (channel != null) {
-                    SubscribeButton(subs.any { it.id == channel.id }, onClick = { vm.store.toggleSubscription(channel) })
+                    SubscribeButton(subs.any { it.id == channel.id }, onClick = { vm.toggleSubscription(channel) })
                 }
             }
         }
@@ -280,7 +284,7 @@ private fun ActionRow(vm: AppViewModel, now: NowPlaying) {
                 Row(
                     Modifier
                         .fillMaxHeight()
-                        .clickable { vm.store.toggleLike(v) }
+                        .clickable { vm.toggleLike(v) }
                         .padding(start = 12.dp, end = 10.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
@@ -292,7 +296,7 @@ private fun ActionRow(vm: AppViewModel, now: NowPlaying) {
                 Row(
                     Modifier
                         .fillMaxHeight()
-                        .clickable { vm.store.toggleDislike(v.id) }
+                        .clickable { vm.toggleDislike(v.id) }
                         .padding(start = 10.dp, end = 12.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
@@ -320,8 +324,8 @@ private fun FullscreenActions(vm: AppViewModel, now: NowPlaying, onComments: () 
     val saved by vm.store.favorites.collectAsState()
     val v = now.video
     Row(Modifier.padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
-        FsAction(if (liked.any { it.id == v.id }) Icons.Filled.ThumbUp else Icons.Outlined.ThumbUp, now.watch?.likeText ?: "Thích") { vm.store.toggleLike(v) }
-        FsAction(if (v.id in disliked) Icons.Filled.ThumbDown else Icons.Outlined.ThumbDown, now.votes?.let { YouTubeRepository.formatCount(it.dislikes) } ?: "Không thích") { vm.store.toggleDislike(v.id) }
+        FsAction(if (liked.any { it.id == v.id }) Icons.Filled.ThumbUp else Icons.Outlined.ThumbUp, now.watch?.likeText ?: "Thích") { vm.toggleLike(v) }
+        FsAction(if (v.id in disliked) Icons.Filled.ThumbDown else Icons.Outlined.ThumbDown, now.votes?.let { YouTubeRepository.formatCount(it.dislikes) } ?: "Không thích") { vm.toggleDislike(v.id) }
         FsAction(Icons.AutoMirrored.Outlined.Comment, now.watch?.commentCountText ?: "Bình luận", onComments)
         FsAction(if (saved.any { it.id == v.id }) Icons.Filled.Bookmark else Icons.Outlined.BookmarkBorder, "Lưu") { vm.store.toggleFavorite(v) }
         FsAction(Icons.Outlined.Share, "Chia sẻ") { shareVideo(context, v) }
@@ -446,6 +450,35 @@ private fun linkify(text: String, onSeek: (Long) -> Unit): AnnotatedString = bui
 
 // ---------------------------------------------------------------- Bình luận
 
+/** Ô viết bình luận – chỉ hiện khi đã đăng nhập tài khoản Google. */
+@Composable
+private fun CommentInput(vm: AppViewModel, avatar: String?) {
+    val yt = LocalYt.current
+    var text by remember { mutableStateOf("") }
+    Row(
+        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Avatar(avatar, 32.dp)
+        Spacer(Modifier.width(12.dp))
+        OutlinedTextField(
+            value = text,
+            onValueChange = { text = it },
+            placeholder = { Text("Viết bình luận…") },
+            modifier = Modifier.weight(1f),
+            maxLines = 4,
+            enabled = !vm.commentPosting,
+        )
+        IconButton(
+            onClick = { vm.postComment(text) { ok -> if (ok) text = "" } },
+            enabled = text.isNotBlank() && !vm.commentPosting,
+        ) {
+            if (vm.commentPosting) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+            else Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Gửi", tint = if (text.isNotBlank()) Color(0xFF3EA6FF) else yt.icon)
+        }
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun CommentsSheet(vm: AppViewModel, onDismiss: () -> Unit) {
@@ -455,6 +488,8 @@ internal fun CommentsSheet(vm: AppViewModel, onDismiss: () -> Unit) {
     InfiniteScroll(list) { vm.loadMoreComments() }
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = yt.surface) {
         Text("Bình luận", color = yt.text, style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
+        val me by vm.account.info.collectAsState()
+        me?.let { CommentInput(vm, it.photo) }
         LazyColumn(Modifier.fillMaxWidth().height(560.dp), state = list) {
             if (c.loading) item { LoadingBox() }
             items(c.items.size, key = { it }) { i ->

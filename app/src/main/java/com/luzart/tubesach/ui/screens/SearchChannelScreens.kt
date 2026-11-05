@@ -324,7 +324,7 @@ fun ChannelScreen(vm: AppViewModel, id: String) {
                             }
                             SubscribeButton(
                                 subs.any { it.id == id },
-                                onClick = { vm.store.toggleSubscription(page.channel) },
+                                onClick = { vm.toggleSubscription(page.channel) },
                                 wide = true,
                                 modifier = Modifier
                                     .padding(16.dp)

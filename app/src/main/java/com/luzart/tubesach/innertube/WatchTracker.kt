@@ -13,9 +13,15 @@ class WatchTracker(private val innerTube: InnerTube) {
     private var startedAtSec: Long = 0
     private var reportedPlayback = false
     private var lastWatchtimeSec: Long = -1
+    private var playbackUrl: String? = null
+    private var watchtimeUrl: String? = null
+    private var authed = false
 
     fun begin(player: PlayerData, startPositionMs: Long) {
         data = player
+        playbackUrl = player.playbackTrackingUrl
+        watchtimeUrl = player.watchtimeTrackingUrl
+        authed = false
         cpn = randomCpn()
         startedAtSec = startPositionMs / 1000
         reportedPlayback = false
@@ -26,6 +32,18 @@ class WatchTracker(private val innerTube: InnerTube) {
         data = null
     }
 
+    /**
+     * Đã đăng nhập: dùng link thống kê của /player WEB (gắn với tài khoản) để video được ghi vào
+     * lịch sử xem của tài khoản Google.
+     */
+    fun useAccountUrls(videoId: String, playback: String?, watchtime: String?) {
+        if (data?.videoId != videoId || playback == null) return
+        playbackUrl = playback
+        watchtimeUrl = watchtime
+        authed = true
+        reportedPlayback = false // báo lại lượt xem cho tài khoản (lần trước là ẩn danh)
+    }
+
     /** Gọi định kỳ khi đang phát. */
     suspend fun onProgress(positionMs: Long, enabled: Boolean) {
         val d = data ?: return
@@ -33,8 +51,8 @@ class WatchTracker(private val innerTube: InnerTube) {
         val pos = positionMs / 1000
         if (!reportedPlayback) {
             reportedPlayback = true
-            d.playbackTrackingUrl?.let {
-                innerTube.ping(withParams(it, mapOf("ver" to "2", "cpn" to cpn, "cmt" to pos.toString())))
+            playbackUrl?.let {
+                innerTube.ping(withParams(it, mapOf("ver" to "2", "cpn" to cpn, "cmt" to pos.toString())), authed)
             }
         }
         // Báo thời lượng đã xem sau 30 giây, rồi mỗi 2 phút một lần.
@@ -42,7 +60,7 @@ class WatchTracker(private val innerTube: InnerTube) {
         val due = (lastWatchtimeSec < 0 && watched >= 30) || (lastWatchtimeSec >= 0 && pos - lastWatchtimeSec >= 120)
         if (due) {
             lastWatchtimeSec = pos
-            d.watchtimeTrackingUrl?.let {
+            watchtimeUrl?.let {
                 innerTube.ping(
                     withParams(
                         it,
@@ -55,6 +73,7 @@ class WatchTracker(private val innerTube: InnerTube) {
                             "state" to "playing",
                         ),
                     ),
+                    authed,
                 )
             }
         }

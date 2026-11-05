@@ -97,6 +97,25 @@ class ParserTest {
     }
 
     @Test
+    fun accountHelpers() {
+        // Token phần bình luận (dùng để lấy mã đăng bình luận khi đã đăng nhập).
+        assertNotNull(Parser.commentsToken(fixture("next")))
+        // Khi chưa đăng nhập YouTube không trả mã đăng bình luận.
+        assertEquals(null, Parser.createCommentParams(fixture("next")))
+        // SAPISIDHASH dùng SHA-1 dạng hex chữ thường.
+        assertEquals("a9993e364706816aba3e25717850c26c9cd0d89d", com.luzart.tubesach.account.YouTubeAccount.sha1("abc"))
+        val menu = JSONObject(
+            """{"actions":[{"openPopupAction":{"popup":{"multiPageMenuRenderer":{"header":{"activeAccountHeaderRenderer":
+            {"accountName":{"simpleText":"Bà Nội"},"channelHandle":{"simpleText":"@banoi"},
+            "accountPhoto":{"thumbnails":[{"url":"https://yt3.ggpht.com/a=s88","width":88,"height":88}]}}}}}}}]}""",
+        )
+        val info = Parser.accountInfo(menu)!!
+        assertEquals("Bà Nội", info.name)
+        assertEquals("@banoi", info.handle)
+        assertNotNull(info.photo)
+    }
+
+    @Test
     fun watchPage() {
         val w = Parser.watch(fixture("next"), "fbiZrIlPNx8")
         println("Xem: ${w.title} | ${w.viewText} | ${w.relativeDateText} | thích=${w.likeText} | kênh=${w.channel} | ${w.subscriberText} | bình luận=${w.commentCountText} | liên quan=${w.related.size}")
