@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Nền tối ngay từ lúc mở app (tránh chớp trắng trên TV) -->
+    <style name="Theme.TubeSachTv" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/tv_background</item>
+        <item name="android:colorPrimary">@color/brand</item>
+        <item name="android:colorAccent">@color/brand</item>
+        <item name="android:windowFullscreen">true</item>
+    </style>
+</resources>

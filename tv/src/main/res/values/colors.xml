@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="brand">#1554B3</color>
+    <color name="brand_dark">#0D3B82</color>
+    <color name="icon_accent">#FFB300</color>
+    <color name="tv_background">#0F0F0F</color>
+</resources>

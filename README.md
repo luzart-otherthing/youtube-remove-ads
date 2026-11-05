@@ -12,6 +12,34 @@
 
 > Ảnh được chụp tự động trên máy tính (Robolectric) với dữ liệu YouTube thật, nên ô ảnh thu nhỏ để trống. Trên điện thoại ảnh hiện bình thường.
 
+## Có cả bản cho TV: Tube Sạch TV 📺
+
+Bản dành riêng cho **Google TV / Android TV**, ví dụ TV Coocaa 55Y73. Điều khiển hoàn toàn bằng remote: chọn bằng ◀ ▶ ▲ ▼ rồi bấm OK. Chữ to, nhìn rõ từ xa. Không quảng cáo, không cần đăng nhập.
+
+👉 **[Hướng dẫn cài lên TV từng bước](docs/HUONG_DAN_CAI_TV.md)**
+
+| Trang chủ | Xem video | Video tiếp theo |
+|---|---|---|
+| ![](docs/screenshots/tv/tv_01_trang_chu.jpg) | ![](docs/screenshots/tv/tv_03_trinh_phat.jpg) | ![](docs/screenshots/tv/tv_04_video_tiep_theo.jpg) |
+
+| Thanh bên trái | Tìm kiếm | Chất lượng | Cài đặt |
+|---|---|---|---|
+| ![](docs/screenshots/tv/tv_02_thanh_ben_trai.jpg) | ![](docs/screenshots/tv/tv_06_tim_kiem.jpg) | ![](docs/screenshots/tv/tv_05_chat_luong.jpg) | ![](docs/screenshots/tv/tv_09_cai_dat.jpg) |
+
+**Có gì trên bản TV**
+- Thanh bên trái kiểu YouTube trên TV: *Tìm kiếm · Trang chủ · Kênh đăng ký · Thư viện · Cài đặt*. Trang chủ có đề xuất tiếng Việt, hàng chip, kệ Shorts và tin nổi bật, cuộn mãi không hết.
+- Trình phát toàn màn hình:
+  - **OK** = tạm dừng / phát; **◀ ▶** = lùi / tua 10 giây. Bấm nhiều lần sẽ được gộp thành một lần tua; giữ phím để tua nhanh hơn.
+  - **▲ ▼** = hiện nút điều khiển, có chữ giải thích cho từng nút; **▼** thêm lần nữa để xem *Video tiếp theo*.
+  - Nhận cả phím ⏯ ⏪ ⏩ ⏭ của remote, tai nghe Bluetooth và Google Assistant.
+- Phụ đề (có *Tự động dịch: Tiếng Việt*), chất lượng (Tự động / 1080p…360p), tốc độ phát, **hẹn giờ tắt** (cho người hay ngủ quên khi xem), thích, xem sau, đăng ký kênh.
+- **SponsorBlock** (tự bỏ qua đoạn tài trợ, có tô màu trên thanh tua) và **Return YouTube Dislike**: dùng chung phần lõi với bản điện thoại.
+- **Giữ OK** trên một video để mở menu: *Xem sau*, *Đi đến kênh*, *Phát từ đầu*, *Không quan tâm*.
+- Thoát video là ô sáng quay lại đúng video vừa xem. Nút Quay lại hoạt động như YouTube trên TV. Rời app (nút Home) thì video tạm dừng, vị trí xem được lưu lại.
+- Nhẹ cho TV yếu (RAM 2 GB): APK khoảng 4 MB, phát H.264 tối đa 1080p bằng phần cứng, giới hạn bộ nhớ ảnh.
+- Tự tải và cài bản cập nhật ngay trên TV, vì TV thường không có trình duyệt. Tính năng này chỉ chạy khi repo để công khai.
+- Cài song song với app điện thoại được, vì là gói riêng `com.luzart.tubesach.tv`.
+
 ## Tính năng
 
 **Giống app YouTube**
@@ -64,8 +92,16 @@ Cách làm: giống trình duyệt chưa đăng nhập. App giữ một **mã kh
 - **Lấy link phát bằng máy khách visionOS**: chỉ 1 yêu cầu, khoảng 0,2–0,5 giây; NewPipe cần 1,4–3 giây. App tự dựng manifest DASH nhiều độ phân giải để ExoPlayer tự đổi chất lượng như YouTube.
 - **NewPipeExtractor làm dự phòng** khi YouTube đổi cách hoạt động, và để đọc bình luận, gợi ý tìm kiếm.
 - **Tính năng của ReVanced/RVX**: SponsorBlock, Return YouTube Dislike, ẩn Shorts, tự chọn chất lượng, hình trong hình, phát nền. Ở đây chúng được làm lại trên app riêng, không sửa APK của Google.
+- **Bản TV:**
+  - Học cách điều khiển của SmartTube và YouTube trên TV: thanh bên trái, ◀ ▶ để tua khi đang xem, ▼ để xem video tiếp theo, giữ OK để mở menu, hẹn giờ tắt.
+  - Giao diện viết lại bằng Jetpack Compose. Compose tự cuộn để ô đang chọn luôn nằm ở vị trí dễ nhìn trên TV.
+  - Phần lấy dữ liệu và trình phát dùng chung với bản điện thoại (module `core`), nên khi YouTube thay đổi chỉ cần sửa một chỗ.
 
 Tên và logo của app được giữ riêng (không dùng logo YouTube) để tránh vi phạm nhãn hiệu, và để Play Protect không cảnh báo "app giả mạo".
+
+## Cài đặt lên TV
+
+Xem **[docs/HUONG_DAN_CAI_TV.md](docs/HUONG_DAN_CAI_TV.md)**: bật chế độ nhà phát triển, gửi file `TubeSachTV-2.0.x.apk` từ điện thoại hoặc USB, cài đặt và cách dùng remote.
 
 ## Cài đặt lên điện thoại
 
@@ -85,25 +121,48 @@ Một số máy (Xiaomi, Oppo, Vivo, Samsung) có chế độ tiết kiệm pin 
 ## Build và test
 
 ```bash
-./gradlew :app:assembleRelease                                     # APK ở app/build/outputs/apk/release/
-./gradlew :app:testDebugUnitTest                                   # test logic, bộ đọc, mở app
+./gradlew :app:assembleRelease :tv:assembleRelease                 # APK ở app/… và tv/build/outputs/apk/release/
+./gradlew :core:testDebugUnitTest :app:testDebugUnitTest :tv:testDebugUnitTest  # test logic, bộ đọc, mở app, điều khiển bằng remote
 ./gradlew :app:testDebugUnitTest -Donline=true --tests '*Online*'  # gọi YouTube thật: ExoPlayer đọc hình + tiếng + phụ đề
-./gradlew :app:testDebugUnitTest -Dscreenshots=true --tests '*ScreenshotTest*'  # chụp lại ảnh màn hình
+./gradlew :tv:testDebugUnitTest -Donline=true --tests '*Online*'   # app TV + YouTube thật, chỉ bấm phím remote: trang chủ → xem → video tiếp theo → quay lại → tìm kiếm
+./gradlew :app:testDebugUnitTest -Dscreenshots=true --tests '*ScreenshotTest*'  # chụp lại ảnh màn hình điện thoại
+./gradlew :tv:testDebugUnitTest -Dscreenshots=true -Donline=true --tests '*TvScreenshotTest*'  # ảnh màn hình TV 1920×1080 (kèm ảnh thu nhỏ thật)
 ```
 
-APK được ký bằng khoá cố định `app/signing/tubesach.jks` để bản cập nhật cài đè được. Nếu repo để công khai, nên tạo khoá riêng: tạo bằng `keytool`, đổi sang base64, rồi lưu vào các secret `SIGNING_KEYSTORE_BASE64`, `SIGNING_STORE_PASSWORD`, `SIGNING_KEY_ALIAS`, `SIGNING_KEY_PASSWORD`. Làm việc này **trước khi** cài cho mọi người.
+Test của app TV (`tv/src/test`) giả lập TV 1920×1080 và **chỉ bấm phím remote**. Các trường hợp được kiểm tra:
+- mở app thì ô sáng vào video đầu tiên;
+- bấm ◀ thì về đúng mục trên thanh bên trái;
+- ô sáng không bị kẹt trong ô tìm kiếm;
+- khi đang xem video, ô sáng không lọt ra trang chủ phía sau;
+- đóng bảng chọn thì ô sáng về đúng nút vừa bấm;
+- thoát video thì về đúng thẻ video;
+- thứ tự nút Quay lại, giữ OK mở menu, tua gộp nhiều lần bấm.
+
+APK điện thoại và APK TV đều được ký bằng khoá cố định `app/signing/tubesach.jks` để bản cập nhật cài đè được. Nếu repo để công khai, nên tạo khoá riêng: tạo bằng `keytool`, đổi sang base64, rồi lưu vào các secret `SIGNING_KEYSTORE_BASE64`, `SIGNING_STORE_PASSWORD`, `SIGNING_KEY_ALIAS`, `SIGNING_KEY_PASSWORD`. Làm việc này **trước khi** cài cho mọi người.
 
 ## Cấu trúc mã
 
+Gồm 3 module: **`core`** là phần lõi dùng chung (lấy dữ liệu YouTube, trình phát, SponsorBlock, lưu trữ, cập nhật). **`app`** là giao diện điện thoại. **`tv`** là giao diện TV.
+
 ```
-app/src/main/java/com/luzart/tubesach/
+core/src/main/java/com/luzart/tubesach/
 ├── innertube/      InnerTube.kt (gọi API), Parser.kt (đọc trang chủ/tìm kiếm/trang xem/kênh/Shorts),
 │                   DirectStreams.kt (link phát + DASH + phụ đề), WatchTracker.kt (báo lượt xem ẩn danh)
 ├── sponsor/        SponsorBlock + Return YouTube Dislike
 ├── data/           YouTubeRepository (gộp nguồn + dự phòng NewPipe), LocalStore (lịch sử, kênh đăng ký, cài đặt)
 ├── player/         PlaybackController (chất lượng, tốc độ, lặp, phụ đề, SponsorBlock, hẹn giờ), PlaybackService (phát nền)
+└── update/         UpdateChecker (GitHub Releases; mỗi app lấy đúng APK của mình)
+
+app/src/main/java/com/luzart/tubesach/
 └── ui/             TubeApp (khung chính), screens/ (Trang chủ, Shorts, Kênh đăng ký, Bạn, Tìm kiếm, Kênh, Xem, Cài đặt),
                     player/ (lớp điều khiển, thanh tua, bảng ⚙, trình phát mini), theme/ (màu sáng/tối)
+
+tv/src/main/java/com/luzart/tubesach/tv/
+├── TvActivity, TvApp, TvViewModel   (điều hướng, nút Quay lại, tải dữ liệu)
+├── ui/             TvRoot (khung chính, đặt ô sáng), Sidebar, Components (thẻ video, nút, bảng chọn, lưới), Focus (bấm OK / giữ OK)
+├── screens/        Trang chủ, Tìm kiếm, Kênh, Kênh đăng ký, Thư viện, Cài đặt, menu video
+├── player/         PlayerScreen (trình phát toàn màn hình), PlayerKeys (phím remote, gộp lần tua), PlayerPanels (chất lượng, phụ đề…)
+└── update/         TvUpdater (tải APK và mở trình cài đặt ngay trên TV)
 ```
 
 ## Lưu ý

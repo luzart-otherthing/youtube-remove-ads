@@ -1,4 +1,4 @@
-name: Build APK
+name: Build APK (điện thoại + Google TV)
 
 on:
   push:
@@ -44,26 +44,51 @@ jobs:
           } >> "$GITHUB_ENV"
 
       - name: Unit tests
-        run: ./gradlew :app:testDebugUnitTest --stacktrace
+        run: ./gradlew :core:testDebugUnitTest :app:testDebugUnitTest :tv:testDebugUnitTest --stacktrace
 
-      - name: Build release APK
-        run: ./gradlew :app:assembleRelease --stacktrace
+      - name: Build release APKs
+        run: ./gradlew :app:assembleRelease :tv:assembleRelease --stacktrace
 
-      - name: Rename APK
-        run: cp app/build/outputs/apk/release/app-release.apk "TubeSach-${VERSION_NAME}.apk"
+      - name: Rename APKs
+        run: |
+          cp app/build/outputs/apk/release/app-release.apk "TubeSach-${VERSION_NAME}.apk"
+          cp tv/build/outputs/apk/release/tv-release.apk "TubeSachTV-${VERSION_NAME}.apk"
+
+      # App TV phải hiện trên màn hình chính của Google TV (LEANBACK_LAUNCHER + banner).
+      - name: Check TV manifest
+        run: |
+          AAPT2=$(ls "$ANDROID_HOME"/build-tools/*/aapt2 | sort -V | tail -1)
+          "$AAPT2" dump badging "TubeSachTV-${VERSION_NAME}.apk" > badging.txt
+          grep -q "leanback-launchable-activity" badging.txt
+          grep -q "banner=" badging.txt
+          grep -q "uses-feature-not-required: name='android.hardware.touchscreen'" badging.txt
 
       - uses: actions/upload-artifact@v6
         with:
           name: TubeSach-${{ env.VERSION_NAME }}
           path: TubeSach-*.apk
 
+      - uses: actions/upload-artifact@v6
+        with:
+          name: TubeSachTV-${{ env.VERSION_NAME }}
+          path: TubeSachTV-*.apk
+
       - name: Publish GitHub Release
         if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         env:
           GH_TOKEN: ${{ github.token }}
+        # APK điện thoại tải lên trước, APK TV tải lên sau ở lệnh riêng: các bản app điện thoại cũ
+        # (trước 2.0.3) chỉ lấy file .apk đầu tiên khi kiểm tra cập nhật nên không được tải nhầm APK TV.
         run: |
           gh release create "v${VERSION_NAME}" "TubeSach-${VERSION_NAME}.apk" \
             --target "${GITHUB_SHA}" \
             --title "Tube Sạch ${VERSION_NAME}" \
             --latest \
-            --notes "Tải file **TubeSach-${VERSION_NAME}.apk** bên dưới về điện thoại Android rồi bấm vào để cài. Bản này cài đè lên bản cũ được, không mất lịch sử xem."
+            --notes "- **Điện thoại Android:** tải **TubeSach-${VERSION_NAME}.apk** rồi bấm vào để cài.
+          - **TV Google TV / Android TV** (ví dụ Coocaa): tải **TubeSachTV-${VERSION_NAME}.apk**, cách cài xem file docs/HUONG_DAN_CAI_TV.md trong repo.
+
+          Bản mới cài đè lên bản cũ được, không mất lịch sử xem."
+          # Thêm bản tên cố định để có link tải không đổi:
+          # https://github.com/<repo>/releases/latest/download/TubeSachTV.apk (chỉ dùng được khi repo công khai)
+          cp "TubeSachTV-${VERSION_NAME}.apk" TubeSachTV.apk
+          gh release upload "v${VERSION_NAME}" "TubeSachTV-${VERSION_NAME}.apk" TubeSachTV.apk
