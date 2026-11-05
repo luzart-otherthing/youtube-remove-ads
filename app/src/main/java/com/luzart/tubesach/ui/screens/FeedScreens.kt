@@ -183,7 +183,7 @@ fun ChannelResultRow(vm: AppViewModel, channel: com.luzart.tubesach.data.Channel
             Text(channel.name, color = yt.text, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
             channel.subtitle?.let { Text(it, color = yt.textSecondary, style = MaterialTheme.typography.bodySmall, maxLines = 2) }
             Spacer(Modifier.height(8.dp))
-            SubscribeButton(subs.any { it.id == channel.id }, onClick = { vm.store.toggleSubscription(channel) })
+            SubscribeButton(subs.any { it.id == channel.id }, onClick = { vm.toggleSubscription(channel) })
         }
     }
 }

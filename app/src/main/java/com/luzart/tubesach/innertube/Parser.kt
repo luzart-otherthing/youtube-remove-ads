@@ -1,5 +1,6 @@
 package com.luzart.tubesach.innertube
 
+import com.luzart.tubesach.account.AccountInfo
 import com.luzart.tubesach.data.ChannelPage
 import com.luzart.tubesach.data.ChannelRef
 import com.luzart.tubesach.data.Chip
@@ -241,7 +242,12 @@ object Parser {
 
     /** Trang tiếp theo khi cuộn xuống, hoặc kết quả khi bấm một chip. */
     fun continuation(json: JSONObject): FeedPage {
-        val actions = (json.optJSONArray("onResponseReceivedActions") ?: json.optJSONArray("onResponseReceivedCommands")).objects()
+        // Trang chủ/tìm kiếm dùng "Actions"/"Commands"; video liên quan (/next) dùng "Endpoints".
+        val actions = (
+            json.optJSONArray("onResponseReceivedActions")
+                ?: json.optJSONArray("onResponseReceivedCommands")
+                ?: json.optJSONArray("onResponseReceivedEndpoints")
+            ).objects()
         val out = mutableListOf<FeedEntry>()
         var token: String? = null
         var chips = emptyList<Chip>()
@@ -360,7 +366,44 @@ object Parser {
         )
     }
 
-    // ------------------------------------------------------------ Shorts
+    // ------------------------------------------------------------ Tài khoản (khi đã đăng nhập)
+
+    fun accountInfo(json: JSONObject): AccountInfo? {
+        val h = findFirst(json, "activeAccountHeaderRenderer") ?: return null
+        val name = textOf(h.opt("accountName")) ?: return null
+        return AccountInfo(
+            name = name,
+            handle = textOf(h.opt("channelHandle")),
+            photo = bestImage(h.a("accountPhoto", "thumbnails"), 88),
+        )
+    }
+
+    /** Danh sách kênh đã đăng ký của tài khoản (trang FEchannels) + token trang sau. */
+    fun accountChannels(json: JSONObject): Pair<List<ChannelRef>, String?> {
+        val channels = findAll(json, "channelRenderer").mapNotNull { channelRenderer(it) }
+        val token = findAll(json, "continuationItemRenderer").firstNotNullOfOrNull { tokenOf(it) }
+        return channels to token
+    }
+
+    /** Token để tải phần bình luận từ trang xem (/next). */
+    fun commentsToken(json: JSONObject): String? {
+        json.a("contents", "twoColumnWatchNextResults", "results", "results", "contents").objects()
+            .mapNotNull { it.optJSONObject("itemSectionRenderer") }
+            .firstOrNull { it.optString("sectionIdentifier") == "comment-item-section" || it.optString("targetId") == "comments-section" }
+            ?.let { r -> findFirst(r, "continuationItemRenderer")?.let { return tokenOf(it) } }
+        for (p in json.a("engagementPanels").objects()) {
+            val r = p.optJSONObject("engagementPanelSectionListRenderer") ?: continue
+            if (r.optString("panelIdentifier") == "engagement-panel-comments-section") {
+                findFirst(r.opt("content"), "continuationItemRenderer")?.let { return tokenOf(it) }
+            }
+        }
+        return null
+    }
+
+    /** Mã cho phép đăng bình luận (chỉ có khi đã đăng nhập). */
+    fun createCommentParams(json: JSONObject): String? = findFirst(json, "createCommentEndpoint")?.s("createCommentParams")
+
+        // ------------------------------------------------------------ Shorts
 
     fun reelSequence(json: JSONObject): Pair<List<String>, String?> {
         val ids = json.a("entries").objects().mapNotNull { findFirst(it, "reelWatchEndpoint")?.s("videoId") }

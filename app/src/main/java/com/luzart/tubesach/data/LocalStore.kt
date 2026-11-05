@@ -39,6 +39,8 @@ data class Settings(
     /** Ngôn ngữ phụ đề tự bật (rỗng = tắt). */
     val captionLanguage: String = "",
     val doubleTapSeekSec: Int = 10,
+    /** Dùng VP9 (tốn ít dữ liệu, có 2K/4K) khi máy giải mã phần cứng được. */
+    val preferVp9: Boolean = true,
 )
 
 /** Lưu dữ liệu trên máy (không gửi đi đâu): cài đặt, lịch sử, kênh đăng ký, video đã lưu. */
@@ -91,6 +93,7 @@ class LocalStore(context: Context) {
             .putBoolean("personalize", s.personalize)
             .putString("captionLanguage", s.captionLanguage)
             .putInt("doubleTapSeekSec", s.doubleTapSeekSec)
+            .putBoolean("preferVp9", s.preferVp9)
             .apply()
     }
 
@@ -111,7 +114,21 @@ class LocalStore(context: Context) {
             personalize = prefs.getBoolean("personalize", d.personalize),
             captionLanguage = prefs.getString("captionLanguage", d.captionLanguage).orEmpty(),
             doubleTapSeekSec = prefs.getInt("doubleTapSeekSec", d.doubleTapSeekSec),
+            preferVp9 = prefs.getBoolean("preferVp9", d.preferVp9),
         )
+    }
+
+    private val _vp9Broken = MutableStateFlow(prefs.getBoolean("vp9Broken", false))
+
+    /**
+     * Máy này phát VP9 không ổn (bộ giải mã báo lỗi hoặc giật) → app đã tự chuyển về H.264 và nhớ lại.
+     * Bật lại "Tiết kiệm dữ liệu (VP9)" trong Cài đặt sẽ xoá dấu này để thử lại.
+     */
+    val vp9Broken: StateFlow<Boolean> = _vp9Broken.asStateFlow()
+
+    fun setVp9Broken(broken: Boolean) {
+        _vp9Broken.value = broken
+        prefs.edit().putBoolean("vp9Broken", broken).apply()
     }
 
     // ---------- Lịch sử ----------
@@ -226,6 +243,17 @@ class LocalStore(context: Context) {
         } else {
             listOf(channel) + _subscriptions.value
         }
+        val arr = JSONArray()
+        _subscriptions.value.forEach { arr.put(it.toJson()) }
+        prefs.edit().putString("subscriptions", arr.toString()).apply()
+    }
+
+    /** Thêm các kênh (ví dụ kênh đã đăng ký trong tài khoản Google) – kênh đã có thì giữ nguyên. */
+    fun addSubscriptions(channels: List<ChannelRef>) {
+        val known = _subscriptions.value.mapTo(HashSet()) { it.id }
+        val added = channels.filter { known.add(it.id) }
+        if (added.isEmpty()) return
+        _subscriptions.value = _subscriptions.value + added
         val arr = JSONArray()
         _subscriptions.value.forEach { arr.put(it.toJson()) }
         prefs.edit().putString("subscriptions", arr.toString()).apply()

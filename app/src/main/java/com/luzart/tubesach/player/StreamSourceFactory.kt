@@ -9,7 +9,8 @@ import androidx.media3.common.MediaMetadata
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DataSource
 import androidx.media3.datasource.DefaultDataSource
-import androidx.media3.datasource.DefaultHttpDataSource
+import androidx.media3.datasource.HttpDataSource
+import androidx.media3.datasource.okhttp.OkHttpDataSource
 import androidx.media3.datasource.ResolvingDataSource
 import androidx.media3.exoplayer.dash.DashMediaSource
 import androidx.media3.exoplayer.dash.manifest.DashManifestParser
@@ -20,6 +21,7 @@ import androidx.media3.exoplayer.source.MediaSource
 import androidx.media3.exoplayer.source.MergingMediaSource
 import androidx.media3.exoplayer.source.ProgressiveMediaSource
 import com.luzart.tubesach.innertube.PlayerData
+import com.luzart.tubesach.innertube.Vp9Policy
 import com.luzart.tubesach.net.OkHttpDownloader
 import org.schabi.newpipe.extractor.MediaFormat
 import org.schabi.newpipe.extractor.services.youtube.YoutubeParsingHelper
@@ -31,6 +33,7 @@ import org.schabi.newpipe.extractor.stream.Stream
 import org.schabi.newpipe.extractor.stream.StreamInfo
 import org.schabi.newpipe.extractor.stream.StreamType
 import org.schabi.newpipe.extractor.stream.VideoStream
+import okhttp3.OkHttpClient
 import java.io.ByteArrayInputStream
 
 /**
@@ -40,14 +43,15 @@ import java.io.ByteArrayInputStream
  * Tất cả đều là file video gốc trên máy chủ googlevideo → không có quảng cáo chèn vào.
  */
 @OptIn(UnstableApi::class)
-class StreamSourceFactory(context: Context) {
+class StreamSourceFactory(context: Context, http: OkHttpClient) {
 
     class NoPlayableStreamException : Exception("Không tìm thấy luồng phát phù hợp")
 
-    private val httpFactory = DefaultHttpDataSource.Factory()
-        .setConnectTimeoutMs(15_000)
-        .setReadTimeoutMs(20_000)
-        .setAllowCrossProtocolRedirects(true)
+    /**
+     * Tải video bằng chung OkHttp với phần còn lại của app → khi bật màn hình / đổi mạng,
+     * [com.luzart.tubesach.net.NetworkMonitor] bỏ được cả các kết nối cũ của trình phát.
+     */
+    private val httpFactory: HttpDataSource.Factory = OkHttpDataSource.Factory(http)
 
     /** Mỗi loại máy khách YouTube (Android/iOS/visionOS/Web) cần User-Agent tương ứng. */
     private val youtubeFactory = ResolvingDataSource.Factory(httpFactory) { spec ->
@@ -75,9 +79,10 @@ class StreamSourceFactory(context: Context) {
         data: PlayerData,
         metadata: MediaMetadata,
         subtitle: MediaItem.SubtitleConfiguration?,
+        vp9: Vp9Policy? = null,
     ): MediaSource {
         val builder = MediaItem.Builder().setMediaId(data.videoId).setMediaMetadata(metadata)
-        val manifest = if (data.isLive) null else data.dashManifest()
+        val manifest = if (data.isLive) null else data.dashManifest(vp9 = vp9)
         when {
             manifest != null -> builder
                 .setUri("data:application/dash+xml;base64," + Base64.encodeToString(manifest.toByteArray(), Base64.NO_WRAP))
@@ -172,8 +177,10 @@ class StreamSourceFactory(context: Context) {
     }
 
     companion object {
+        /** Cạnh ngắn của khung hình (video dọc 1080×1920 vẫn là 1080p). */
         private fun heightOf(v: VideoStream): Int =
-            if (v.height > 0) v.height else v.getResolution().filter { it.isDigit() }.take(4).toIntOrNull() ?: 0
+            if (v.height > 0 && v.width > 0) minOf(v.width, v.height)
+            else if (v.height > 0) v.height else v.getResolution().filter { it.isDigit() }.take(4).toIntOrNull() ?: 0
 
         private fun isUsable(s: Stream) = s.isUrl && s.content.isNotEmpty() &&
             (s.deliveryMethod == DeliveryMethod.PROGRESSIVE_HTTP || s.deliveryMethod == DeliveryMethod.HLS)

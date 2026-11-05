@@ -3,7 +3,10 @@ package com.luzart.tubesach
 import android.os.Looper
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
+import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.test.core.app.ApplicationProvider
 import com.github.takahirom.roborazzi.ExperimentalRoborazziApi
 import com.github.takahirom.roborazzi.RoborazziOptions
@@ -206,5 +209,87 @@ class ScreenshotTest {
         vm.previewHome(FeedState(loaded = true))
         vm.push(Screen.Settings)
         shot("12_cai_dat", content = app(vm))
+    }
+
+    @Test
+    fun relatedFailedShowsRetry() {
+        val vm = vmWithHome()
+        PlaybackController.showForPreview(nowPlaying().copy(watch = null, related = emptyList(), watchFailed = true))
+        vm.watchExpanded = true
+        shot("13_de_xuat_loi_thu_lai", content = app(vm))
+    }
+
+    @Test
+    fun commentsWhenSignedIn() {
+        app.account.onLoggedIn(com.luzart.tubesach.account.AccountInfo("Bà Nội", "@banoi", null))
+        try {
+            val vm = AppViewModel(app)
+            vm.previewComments(
+                CommentsState(
+                    "x",
+                    listOf(CommentItem("@cailuongfan", null, "Vũ Linh – Tài Linh diễn hay quá, xem hoài không chán!", "2 ngày trước", "15", 2, false)),
+                ),
+            )
+            shot("14_binh_luan_khi_dang_nhap", screen = true) { com.luzart.tubesach.ui.screens.CommentsSheet(vm) {} }
+        } finally {
+            app.account.logout()
+        }
+    }
+
+    @Test
+    fun loginWarning() {
+        app.account.logout()
+        val vm = AppViewModel(app)
+        vm.previewHome(FeedState(loaded = true))
+        vm.push(Screen.Settings)
+        app.store.updateSettings { it.copy(theme = ThemeMode.LIGHT) }
+        compose.setContent { TubeTheme(ThemeMode.LIGHT, 1f) { app(vm)() } }
+        settle()
+        compose.onNodeWithText("Đăng nhập (không khuyến khích)").performScrollTo()
+        settle()
+        captureScreenRoboImage("build/outputs/roborazzi/15_cai_dat_tai_khoan.png", opts)
+        compose.onNodeWithText("Đăng nhập (không khuyến khích)").performClick()
+        settle()
+        captureScreenRoboImage("build/outputs/roborazzi/16_canh_bao_dang_nhap.png", opts)
+    }
+
+    private fun withVp9Device(broken: Boolean = false, block: () -> Unit) {
+        com.luzart.tubesach.player.VideoCodecSupport.override = { _, _, _ -> true } // máy có VP9 phần cứng
+        app.store.setVp9Broken(broken)
+        try {
+            block()
+        } finally {
+            com.luzart.tubesach.player.VideoCodecSupport.resetForTest()
+            app.store.setVp9Broken(false)
+        }
+    }
+
+    private fun settingsVm() = AppViewModel(app).also {
+        it.previewHome(FeedState(loaded = true))
+        it.push(Screen.Settings)
+    }
+
+    @Test
+    fun vp9Setting() = withVp9Device { shot("17_cai_dat_vp9", content = app(settingsVm())) }
+
+    @Test
+    fun vp9SettingAfterAutoFallback() = withVp9Device(broken = true) { shot("18_cai_dat_vp9_da_tu_tat", content = app(settingsVm())) }
+
+    @Test
+    fun advancedQualityWith4k() = withVp9Device {
+        // Menu ⚙ → Chất lượng → Nâng cao: có 4K/2K kèm ghi chú.
+        val now = nowPlaying().copy(availableHeights = listOf(2160, 1440, 1080, 720, 480, 360, 240, 144))
+        app.store.updateSettings { it.copy(theme = ThemeMode.LIGHT) }
+        compose.setContent {
+            TubeTheme(ThemeMode.LIGHT, 1f) {
+                com.luzart.tubesach.ui.player.PlayerSettingsSheet(now, app.store, 1080, onDismiss = {}, onOpenAppSettings = {})
+            }
+        }
+        settle()
+        compose.onNodeWithText("Chất lượng").performClick()
+        settle()
+        compose.onNodeWithText("Nâng cao").performClick()
+        settle()
+        captureScreenRoboImage("build/outputs/roborazzi/19_chat_luong_nang_cao_4k.png", opts)
     }
 }
