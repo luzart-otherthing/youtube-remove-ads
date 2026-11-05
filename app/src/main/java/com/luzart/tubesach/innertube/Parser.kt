@@ -18,6 +18,18 @@ import org.json.JSONObject
  */
 object Parser {
 
+    // ------------------------------------------------------------ Nhận diện quảng cáo giả làm video thường
+
+    /** Nhãn YouTube gắn cho mục quảng cáo/tài trợ. So khớp nguyên văn để không bỏ nhầm video có chữ "tài trợ" trong tiêu đề. */
+    private val SPONSORED_LABELS = setOf("được tài trợ", "quảng cáo", "tài trợ", "sponsored", "ad")
+
+    /** Từ trong style huy hiệu (vd. BADGE_STYLE_TYPE_AD). So theo từng từ vì "BADGE" cũng chứa "AD". */
+    private val SPONSORED_STYLE_WORDS = setOf("AD", "SPONSORED")
+
+    private fun isSponsoredLabel(text: String?): Boolean = text != null && text.trim().lowercase() in SPONSORED_LABELS
+
+    private fun isSponsoredStyle(style: String?): Boolean = style != null && style.split('_').any { it in SPONSORED_STYLE_WORDS }
+
     // ------------------------------------------------------------ Các mục đơn lẻ
 
     fun lockup(l: JSONObject): VideoItem? {
@@ -49,6 +61,9 @@ object Parser {
 
         val rows = md.a("metadata", "contentMetadataViewModel", "metadataRows").objects()
         val parts = rows.map { row -> row.a("metadataParts").objects() }
+        val sponsored = badges.any { isSponsoredLabel(it.optString("text")) } ||
+            parts.flatten().any { isSponsoredLabel(textOf(it.opt("text"))) }
+        if (sponsored) return null
         val firstPart = parts.firstOrNull()?.firstOrNull()
         val channelName = textOf(firstPart?.opt("text")).orEmpty()
         val channelId = findFirst(firstPart, "browseEndpoint")?.s("browseId")
@@ -78,6 +93,9 @@ object Parser {
     fun videoRenderer(v: JSONObject): VideoItem? {
         val id = v.s("videoId") ?: return null
         val title = textOf(v.opt("title")) ?: textOf(v.opt("headline")) ?: return null
+        val sponsored = v.a("badges").objects().mapNotNull { it.optJSONObject("metadataBadgeRenderer") }
+            .any { isSponsoredLabel(it.s("label")) || isSponsoredStyle(it.s("style")) }
+        if (sponsored) return null
         val owner = v.optJSONObject("ownerText") ?: v.optJSONObject("shortBylineText") ?: v.optJSONObject("longBylineText")
         val live = v.a("badges").objects().any { it.s("metadataBadgeRenderer", "style")?.contains("LIVE") == true } ||
             v.a("thumbnailOverlays").objects().any { it.s("thumbnailOverlayTimeStatusRenderer", "style") == "LIVE" }
