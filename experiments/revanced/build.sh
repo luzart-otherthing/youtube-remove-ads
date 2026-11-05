@@ -115,7 +115,21 @@ java -jar "$CLI" patch --help > "$OUT/cli-patch-help.txt" 2>&1 || true
 cat "$OUT/cli-patch-help.txt"
 java -jar "$CLI" list-patches -p "$WORK/patches.rvp" -b --packages --versions --options \
   --filter-package-name com.google.android.youtube > "$OUT/danh-sach-ban-va.txt" 2>&1 || true
-head -c 4000 "$OUT/danh-sach-ban-va.txt"
+# Nhiều app có bản vá trùng tên "GmsCore support" (YouTube, YouTube Music, Photos, News…). Bật theo TÊN
+# thì tuỳ chọn có thể rơi vào bản vá của app khác → phải dùng CHỈ SỐ của đúng bản vá cho YouTube.
+GMS_INDEX=$(python3 - "$OUT/danh-sach-ban-va.txt" <<'PY'
+import re, sys
+text = open(sys.argv[1], encoding="utf-8", errors="replace").read()
+for block in re.split(r"\n\s*\n", text):
+    idx = re.search(r"Index: (\d+)", block)
+    if idx and re.search(r"^Name: GmsCore support\s*$", block, re.M) and "com.google.android.youtube" in block:
+        print(idx.group(1))
+        break
+PY
+)
+echo "Chỉ số bản vá GmsCore support cho YouTube: ${GMS_INDEX:-KHÔNG TÌM THẤY}" | tee -a "$OUT/phien-ban.txt"
+grep -n -B2 -A14 "^Name: GmsCore support" "$OUT/danh-sach-ban-va.txt" | head -60 || true
+[ -n "$GMS_INDEX" ] || { echo "Không tìm thấy bản vá GmsCore support cho YouTube"; exit 1; }
 
 patch() { # $1 = tên file ra, các tham số còn lại = tuỳ chọn thêm cho CLI
   local name=$1; shift
@@ -134,9 +148,16 @@ patch() { # $1 = tên file ra, các tham số còn lại = tuỳ chọn thêm ch
 # nhưng trỏ mọi lời gọi Google Play Services về chính com.google.android.gms của máy.
 FAILED=0
 # (CLI v6: tuỳ chọn -O phải đứng TRƯỚC -e của bản vá nó áp dụng.)
-patch youtube-revanced-khong-microg -OgmsCoreVendorGroupId=com.google -e "GmsCore support" || FAILED=1
+patch youtube-revanced-khong-microg -OgmsCoreVendorGroupId=com.google --ei "$GMS_INDEX" || FAILED=1
 # Bản chuẩn (cần microG) – để đối chứng.
 patch youtube-revanced-chuan || FAILED=1
+
+log "6. Kiểm tra: bản không microG còn gọi GmsCore (app.revanced.android.gms) không?"
+for name in youtube-revanced-khong-microg youtube-revanced-chuan; do
+  [ -f "$OUT/$name.apk" ] || continue
+  n=$(unzip -p "$OUT/$name.apk" 'classes*.dex' | grep -a -o 'app\.revanced\.android\.gms' | wc -l || true)
+  echo "$name: $n chỗ trong mã (dex) nhắc tới app.revanced.android.gms" | tee -a "$OUT/phien-ban.txt"
+done
 
 ls -la "$OUT"
 exit $FAILED
