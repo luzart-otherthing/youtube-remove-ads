@@ -1,6 +1,7 @@
 package com.luzart.tubesach
 
 import com.luzart.tubesach.data.FeedEntry
+import com.luzart.tubesach.data.FeedPage
 import com.luzart.tubesach.innertube.Parser
 import com.luzart.tubesach.innertube.PlayerData
 import com.luzart.tubesach.innertube.StreamFormat
@@ -55,6 +56,53 @@ class ParserTest {
         assertTrue(v.channelId!!.startsWith("UC"))
         assertTrue(page.entries.any { it is FeedEntry.ShortsShelf })
         assertNotNull(page.continuation)
+    }
+
+    private fun FeedPage.videoIds() = entries.filterIsInstance<FeedEntry.Video>().map { it.video.url.substringAfter("v=") }
+
+    @Test
+    fun searchDropsVideoRendererWithSponsoredBadge() {
+        // Quảng cáo giả làm videoRenderer thường, chỉ khác ở huy hiệu "Được tài trợ".
+        // Video thường có badge style BADGE_STYLE_TYPE_SIMPLE ("B-AD-GE" chứa "AD") và tiêu đề có chữ "tài trợ" → phải giữ.
+        val json = JSONObject(
+            """{"contents":{"twoColumnSearchResultsRenderer":{"primaryContents":{"sectionListRenderer":{"contents":[
+            {"itemSectionRenderer":{"contents":[
+              {"videoRenderer":{"videoId":"ORGANIC0001","title":{"runs":[{"text":"Chương trình được tài trợ bởi Vinamilk"}]},
+                "badges":[{"metadataBadgeRenderer":{"style":"BADGE_STYLE_TYPE_SIMPLE","label":"Mới"}}]}},
+              {"videoRenderer":{"videoId":"ADDISGUISE1","title":{"runs":[{"text":"Quảng cáo giả làm video"}]},
+                "badges":[{"metadataBadgeRenderer":{"style":"BADGE_STYLE_TYPE_SIMPLE","label":"Được tài trợ"}}]}},
+              {"videoRenderer":{"videoId":"ADDISGUISE2","title":{"runs":[{"text":"Ad in English"}]},
+                "badges":[{"metadataBadgeRenderer":{"label":"  SPONSORED "}}]}},
+              {"videoRenderer":{"videoId":"ADDISGUISE3","title":{"runs":[{"text":"Chỉ có style quảng cáo"}]},
+                "badges":[{"metadataBadgeRenderer":{"style":"BADGE_STYLE_TYPE_AD"}}]}}
+            ]}}]}}}}}""",
+        )
+        assertEquals(listOf("ORGANIC0001"), Parser.search(json).videoIds())
+    }
+
+    private fun lockupItem(id: String, title: String, channel: String, thumbBadge: String, rowTexts: List<String>) = """
+        {"richItemRenderer":{"content":{"lockupViewModel":{"contentId":"$id","contentType":"LOCKUP_CONTENT_TYPE_VIDEO",
+          "contentImage":{"thumbnailViewModel":{"image":{"sources":[{"url":"https://i.ytimg.com/vi/$id/hq720.jpg","width":720,"height":404}]},
+            "overlays":[{"thumbnailBottomOverlayViewModel":{"badges":[{"thumbnailBadgeViewModel":
+              {"text":"$thumbBadge","badgeStyle":"THUMBNAIL_OVERLAY_BADGE_STYLE_DEFAULT"}}]}}]}},
+          "metadata":{"lockupMetadataViewModel":{"title":{"content":"$title"},
+            "metadata":{"contentMetadataViewModel":{"metadataRows":[
+              {"metadataParts":[{"text":{"content":"$channel"}}]},
+              {"metadataParts":[${rowTexts.joinToString(",") { """{"text":{"content":"$it"}}""" }}]}
+            ]}}}}}}}}
+    """
+
+    @Test
+    fun homeGridDropsLockupWithSponsoredLabel() {
+        // Video thường có chữ "Quảng cáo" trong tiêu đề và tên kênh (không trùng khớp nguyên văn) → phải giữ.
+        val json = JSONObject(
+            """{"contents":{"twoColumnBrowseResultsRenderer":{"tabs":[{"tabRenderer":{"content":{"richGridRenderer":{"contents":[
+            ${lockupItem("ORGANIC0002", "Quảng cáo xưa và nay", "Kênh Quảng Cáo Hay", "12:34", listOf("1,2 N lượt xem", "2 ngày trước"))},
+            ${lockupItem("ADLOCKUP001", "Quảng cáo dạng lockup", "Hãng ABC", "Được tài trợ", listOf("1,2 N lượt xem"))},
+            ${lockupItem("ADLOCKUP002", "Quảng cáo ghi ở dòng phụ", "Hãng ABC", "0:30", listOf("Sponsored"))}
+            ]}}}}]}}}""",
+        )
+        assertEquals(listOf("ORGANIC0002"), Parser.browseGrid(json).videoIds())
     }
 
     @Test
