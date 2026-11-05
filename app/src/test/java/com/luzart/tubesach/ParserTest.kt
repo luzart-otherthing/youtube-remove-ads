@@ -3,6 +3,7 @@ package com.luzart.tubesach
 import com.luzart.tubesach.data.FeedEntry
 import com.luzart.tubesach.innertube.Parser
 import com.luzart.tubesach.innertube.PlayerData
+import com.luzart.tubesach.innertube.StreamFormat
 import com.luzart.tubesach.sponsor.SponsorBlock
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
@@ -54,6 +55,45 @@ class ParserTest {
         assertTrue(v.channelId!!.startsWith("UC"))
         assertTrue(page.entries.any { it is FeedEntry.ShortsShelf })
         assertNotNull(page.continuation)
+    }
+
+    @Test
+    fun relatedVideosContinuation() {
+        // Trang xem chỉ trả ~20 video liên quan; phần còn lại nằm sau token (onResponseReceivedEndpoints).
+        val watch = Parser.watch(fixture("next"), "x")
+        assertNotNull("Phải có token để tải thêm video liên quan", watch.relatedContinuation)
+        val page = Parser.continuation(fixture("next_cont"))
+        val videos = page.entries.filterIsInstance<FeedEntry.Video>()
+        println("Tải thêm video liên quan: ${videos.size} video, còn tiếp=${page.continuation != null}")
+        assertTrue(videos.size >= 10)
+        assertNotNull(page.continuation)
+    }
+
+    @Test
+    fun portraitShortsKeepHighQuality() {
+        fun fmt(itag: Int, w: Int, h: Int) = StreamFormat(
+            itag, "https://x/$itag", "video/mp4", "avc1.4d401f", w * h, w, h, 30, 0, 700, 701, 1500, 0, 0, null, false,
+        )
+        val audio = StreamFormat(140, "https://x/a", "audio/mp4", "mp4a.40.2", 128_000, 0, 0, 0, 0, 600, 601, 900, 44100, 2, null, false)
+        val short = PlayerData(
+            "s", "t", "a", null, 30, 1, false, null,
+            listOf(fmt(137, 1080, 1920), fmt(136, 720, 1280), fmt(135, 480, 854), fmt(134, 360, 640), audio),
+            null, null, null, Long.MAX_VALUE,
+        )
+        assertTrue(short.isPortrait)
+        assertEquals(listOf(1080, 720, 480, 360), short.availableHeights)
+        val mpd = short.dashManifest()!!
+        assertTrue("Shorts 1080p (1080×1920) phải có trong manifest", mpd.contains("width=\"1080\" height=\"1920\""))
+        assertTrue(mpd.contains("width=\"720\" height=\"1280\""))
+    }
+
+    @Test
+    fun shortsFillOnlyWhenAspectIsClose() {
+        val phone = 1080f / 2150f
+        assertTrue(com.luzart.tubesach.ui.player.shouldFill(9f / 16f, phone)) // Shorts dọc: phủ kín như YouTube
+        assertTrue(!com.luzart.tubesach.ui.player.shouldFill(16f / 9f, phone)) // video ngang: không phóng to
+        assertTrue(!com.luzart.tubesach.ui.player.shouldFill(1f, phone)) // video vuông: không phóng to
+        assertTrue(!com.luzart.tubesach.ui.player.shouldFill(0f, phone)) // chưa biết kích thước
     }
 
     @Test

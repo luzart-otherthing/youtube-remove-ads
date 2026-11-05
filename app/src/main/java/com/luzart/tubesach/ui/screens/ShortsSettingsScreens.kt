@@ -112,6 +112,8 @@ private fun ShortPage(vm: AppViewModel, id: String, current: Boolean) {
     val info = now?.takeIf { it.video.id == id }
     val ui = rememberPlayerUiState()
     val video = info?.video ?: VideoItem.ofId(id)
+    var showComments by remember { mutableStateOf(false) }
+    if (showComments) CommentsSheet(vm, onDismiss = { showComments = false })
 
     Box(
         Modifier
@@ -150,7 +152,10 @@ private fun ShortPage(vm: AppViewModel, id: String, current: Boolean) {
         ) {
             ShortAction(if (liked.any { it.id == id }) Icons.Filled.ThumbUp else Icons.Outlined.ThumbUp, info?.watch?.likeText ?: "Thích") { vm.store.toggleLike(video) }
             ShortAction(if (id in disliked) Icons.Filled.ThumbDown else Icons.Outlined.ThumbDown, "Không thích") { vm.store.toggleDislike(id) }
-            ShortAction(Icons.AutoMirrored.Outlined.Comment, info?.watch?.commentCountText ?: "Bình luận") { }
+            ShortAction(Icons.AutoMirrored.Outlined.Comment, info?.watch?.commentCountText ?: "Bình luận") {
+                vm.loadCommentsPreview(video)
+                showComments = true
+            }
             ShortAction(Icons.Outlined.Share, "Chia sẻ") { shareVideo(context, video) }
         }
         // Thông tin kênh + tiêu đề

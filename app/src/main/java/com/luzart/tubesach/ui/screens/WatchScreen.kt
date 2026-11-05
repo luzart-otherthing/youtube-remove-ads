@@ -144,7 +144,7 @@ fun WatchScreen(vm: AppViewModel, inPip: Boolean, onToggleFullscreen: () -> Unit
                         else { settingsOnCaptions = true; showSettings = true }
                     },
                     onToggleSponsor = { PlaybackController.setSponsorBlock(!settings.sponsorBlock) },
-                    fullscreenActions = { FullscreenActions(vm, now) },
+                    fullscreenActions = { FullscreenActions(vm, now, onComments = { showComments = true }) },
                 )
                 SkipToast(toast) { PlaybackController.undoSkip(it); toast = null }
             }
@@ -175,6 +175,9 @@ private fun WatchDetails(vm: AppViewModel, now: NowPlaying, onDescription: () ->
     val menu = rememberMenuState()
     val list = rememberLazyListState()
     LaunchedEffect(now.video.id) { list.scrollToItem(0) }
+    // Cuộn gần hết → tải thêm video liên quan (trước đây chỉ có ~20 video rồi hết).
+    InfiniteScroll(list) { PlaybackController.loadMoreRelated() }
+    val relatedLoading by PlaybackController.relatedLoading.collectAsState()
     val w = now.watch
     val v = now.video
 
@@ -222,11 +225,30 @@ private fun WatchDetails(vm: AppViewModel, now: NowPlaying, onDescription: () ->
         }
         item(key = "actions") { ActionRow(vm, now) }
         item(key = "comments") { CommentsCard(vm, now, onComments) }
-        if (w == null) item(key = "loadingRel") { LoadingBox() }
+        if (w == null) {
+            if (now.watchFailed) {
+                item(key = "relError") {
+                    Column(
+                        Modifier
+                            .fillMaxWidth()
+                            .clickable { PlaybackController.reloadWatch() }
+                            .padding(24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        Text("Không tải được video đề xuất", color = yt.text, style = MaterialTheme.typography.bodyMedium)
+                        Spacer(Modifier.height(8.dp))
+                        Text("Nhấn để thử lại", color = Color(0xFF3EA6FF), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+                    }
+                }
+            } else {
+                item(key = "loadingRel") { LoadingBox() }
+            }
+        }
         items(now.related.size, key = { "rel" + it + now.related[it].id }) { i ->
             val r = now.related[i]
             VideoCard(r, onClick = { vm.openVideo(r, resume = false) }, onChannelClick = { vm.watchExpanded = false; vm.openChannel(it) }, onMore = { menu.video = r })
         }
+        if (relatedLoading) item(key = "relMore") { LoadingBox() }
     }
     MenuHost(vm, menu)
 }
@@ -291,7 +313,7 @@ private fun ActionRow(vm: AppViewModel, now: NowPlaying) {
 }
 
 @Composable
-private fun FullscreenActions(vm: AppViewModel, now: NowPlaying) {
+private fun FullscreenActions(vm: AppViewModel, now: NowPlaying, onComments: () -> Unit) {
     val context = LocalContext.current
     val liked by vm.store.liked.collectAsState()
     val disliked by vm.store.disliked.collectAsState()
@@ -300,7 +322,7 @@ private fun FullscreenActions(vm: AppViewModel, now: NowPlaying) {
     Row(Modifier.padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
         FsAction(if (liked.any { it.id == v.id }) Icons.Filled.ThumbUp else Icons.Outlined.ThumbUp, now.watch?.likeText ?: "Thích") { vm.store.toggleLike(v) }
         FsAction(if (v.id in disliked) Icons.Filled.ThumbDown else Icons.Outlined.ThumbDown, now.votes?.let { YouTubeRepository.formatCount(it.dislikes) } ?: "Không thích") { vm.store.toggleDislike(v.id) }
-        FsAction(Icons.AutoMirrored.Outlined.Comment, now.watch?.commentCountText ?: "Bình luận") { }
+        FsAction(Icons.AutoMirrored.Outlined.Comment, now.watch?.commentCountText ?: "Bình luận", onComments)
         FsAction(if (saved.any { it.id == v.id }) Icons.Filled.Bookmark else Icons.Outlined.BookmarkBorder, "Lưu") { vm.store.toggleFavorite(v) }
         FsAction(Icons.Outlined.Share, "Chia sẻ") { shareVideo(context, v) }
     }
@@ -426,7 +448,7 @@ private fun linkify(text: String, onSeek: (Long) -> Unit): AnnotatedString = bui
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun CommentsSheet(vm: AppViewModel, onDismiss: () -> Unit) {
+internal fun CommentsSheet(vm: AppViewModel, onDismiss: () -> Unit) {
     val yt = LocalYt.current
     val c = vm.comments
     val list = rememberLazyListState()

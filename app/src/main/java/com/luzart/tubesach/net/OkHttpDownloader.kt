@@ -1,5 +1,6 @@
 package com.luzart.tubesach.net
 
+import okhttp3.ConnectionPool
 import okhttp3.OkHttpClient
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.schabi.newpipe.extractor.downloader.Downloader
@@ -47,8 +48,11 @@ class OkHttpDownloader(val client: OkHttpClient) : Downloader() {
 
         fun createClient(): OkHttpClient = OkHttpClient.Builder()
             .connectTimeout(15, TimeUnit.SECONDS)
-            .readTimeout(30, TimeUnit.SECONDS)
+            .readTimeout(20, TimeUnit.SECONDS)
             .retryOnConnectionFailure(true)
+            // Kết nối rảnh quá 1 phút thì đóng: sau khi tắt màn hình, kết nối cũ thường đã bị nhà mạng cắt
+            // mà máy không biết → dùng lại sẽ treo tới hết thời gian chờ.
+            .connectionPool(ConnectionPool(8, 1, TimeUnit.MINUTES))
             .build()
     }
 }

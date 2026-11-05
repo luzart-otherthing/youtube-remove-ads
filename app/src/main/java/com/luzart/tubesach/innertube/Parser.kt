@@ -241,7 +241,12 @@ object Parser {
 
     /** Trang tiếp theo khi cuộn xuống, hoặc kết quả khi bấm một chip. */
     fun continuation(json: JSONObject): FeedPage {
-        val actions = (json.optJSONArray("onResponseReceivedActions") ?: json.optJSONArray("onResponseReceivedCommands")).objects()
+        // Trang chủ/tìm kiếm dùng "Actions"/"Commands"; video liên quan (/next) dùng "Endpoints".
+        val actions = (
+            json.optJSONArray("onResponseReceivedActions")
+                ?: json.optJSONArray("onResponseReceivedCommands")
+                ?: json.optJSONArray("onResponseReceivedEndpoints")
+            ).objects()
         val out = mutableListOf<FeedEntry>()
         var token: String? = null
         var chips = emptyList<Chip>()

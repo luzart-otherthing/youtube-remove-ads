@@ -17,6 +17,7 @@ import com.luzart.tubesach.data.FeedPage
 import com.luzart.tubesach.data.ShortItem
 import com.luzart.tubesach.data.VideoItem
 import com.luzart.tubesach.data.YouTubeRepository
+import com.luzart.tubesach.net.NetworkMonitor
 import com.luzart.tubesach.player.PlaybackController
 import com.luzart.tubesach.update.UpdateChecker
 import com.luzart.tubesach.update.UpdateInfo
@@ -77,6 +78,21 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     val store = (app as App).store
     private val http = (app as App).http
+
+    init {
+        // Có mạng trở lại → tự tải lại các trang đang báo lỗi.
+        viewModelScope.launch { NetworkMonitor.reconnected.collect { onResume() } }
+    }
+
+    /** Mở lại app / bật màn hình / có mạng lại: tải lại những gì đang lỗi (không làm mất chỗ đang xem). */
+    fun onResume() {
+        if (home.error != null && !home.loading) {
+            if (home.selectedChip == 0) refreshHome() else selectChip(home.selectedChip)
+        }
+        results.forEach { (q, st) -> if (st.error != null && !st.loading) runSearch(q, resultFilter[q] ?: YouTubeRepository.SearchFilter.ALL) }
+        if (subscriptionFeed.loaded && subscriptionFeed.entries.isEmpty() && store.subscriptions.value.isNotEmpty()) loadSubscriptions(force = true)
+        if (shorts.isEmpty() && tab == Tab.SHORTS) ensureShorts()
+    }
 
     // ---------------------------------------------------------------- Điều hướng
 
@@ -196,11 +212,23 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         val token = home.continuation ?: return
         if (home.loadingMore || home.loading) return
         home = home.copy(loadingMore = true)
+        val job = homeJob
         viewModelScope.launch {
             val page = runCatching { YouTubeRepository.feedContinuation(token) }.getOrNull()
+            // Trang chủ vừa được làm mới / đổi chip trong lúc tải → bỏ kết quả cũ.
+            if (homeJob !== job || home.continuation != token) {
+                home = home.copy(loadingMore = false)
+                return@launch
+            }
+            if (page == null) {
+                // Lỗi mạng: giữ token để cuộn xuống lần nữa là thử lại (trước đây mất token → hết cuộn).
+                home = home.copy(loadingMore = false)
+                return@launch
+            }
+            val keys = home.entries.mapTo(HashSet()) { it.key }
             home = home.copy(
-                entries = home.entries + page?.entries.orEmpty().filterNot { e -> home.entries.any { it.key == e.key } },
-                continuation = page?.continuation,
+                entries = home.entries + page.entries.filter { keys.add(it.key) },
+                continuation = page.continuation,
                 loadingMore = false,
             )
         }
@@ -271,9 +299,14 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             val page = runCatching { YouTubeRepository.searchMore(token) }.getOrNull()
             val cur = results[q] ?: return@launch
+            if (page == null || cur.continuation != token) {
+                results[q] = cur.copy(loadingMore = false) // giữ token để thử lại
+                return@launch
+            }
+            val keys = cur.entries.mapTo(HashSet()) { it.key }
             results[q] = cur.copy(
-                entries = cur.entries + page?.entries.orEmpty().filterNot { e -> cur.entries.any { it.key == e.key } },
-                continuation = page?.continuation,
+                entries = cur.entries + page.entries.filter { keys.add(it.key) },
+                continuation = page.continuation,
                 loadingMore = false,
             )
         }
@@ -324,10 +357,15 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             val page = runCatching { YouTubeRepository.feedContinuation(token) }.getOrNull()
             val cur = channels[id] ?: return@launch
+            if (page == null || cur.videos.continuation != token) {
+                channels[id] = cur.copy(videos = cur.videos.copy(loadingMore = false)) // giữ token để thử lại
+                return@launch
+            }
+            val keys = cur.videos.entries.mapTo(HashSet()) { it.key }
             channels[id] = cur.copy(
                 videos = cur.videos.copy(
-                    entries = cur.videos.entries + page?.entries.orEmpty(),
-                    continuation = page?.continuation,
+                    entries = cur.videos.entries + page.entries.filter { keys.add(it.key) },
+                    continuation = page.continuation,
                     loadingMore = false,
                 ),
             )

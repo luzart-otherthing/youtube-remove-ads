@@ -50,6 +50,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -67,6 +68,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -74,6 +76,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.media3.common.C
 import androidx.media3.common.Player
+import androidx.media3.common.VideoSize
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.CaptionStyleCompat
@@ -109,17 +112,41 @@ fun rememberPlayerUiState(): PlayerUiState {
             state.buffered = p.bufferedPosition
             state.buffering = p.playbackState == Player.STATE_BUFFERING
             state.ended = p.playbackState == Player.STATE_ENDED
-            state.height = p.videoFormat?.height ?: 0
+            // "720p", "1080p"… = cạnh ngắn (video dọc 1080×1920 là 1080p).
+            state.height = p.videoFormat?.let { f -> if (f.width > 0 && f.height > 0) minOf(f.width, f.height) else f.height } ?: 0
             delay(250)
         }
     }
     return state
 }
 
-/** Khung hình video (PlayerView của Media3, tắt bộ điều khiển mặc định). */
+/**
+ * Khung hình video (PlayerView của Media3, tắt bộ điều khiển mặc định).
+ *
+ * [zoom] = true (Shorts): phủ kín màn hình như YouTube, nhưng CHỈ khi khung hình video gần giống
+ * khung màn hình (video dọc 9:16). Video ngang/vuông trong tab Shorts sẽ hiện đủ (viền đen) thay vì
+ * bị phóng to cắt mất hơn nửa hình.
+ */
 @OptIn(UnstableApi::class)
 @Composable
 fun PlayerSurface(modifier: Modifier = Modifier, zoom: Boolean = false, isPlaying: Boolean = false) {
+    var videoAspect by remember { mutableFloatStateOf(0f) }
+    var boxAspect by remember { mutableFloatStateOf(0f) }
+    if (zoom) {
+        DisposableEffect(Unit) {
+            val p = PlaybackController.player
+            fun update(size: VideoSize) {
+                videoAspect = if (size.width > 0 && size.height > 0) size.width * size.pixelWidthHeightRatio / size.height else 0f
+            }
+            update(p.videoSize)
+            val listener = object : Player.Listener {
+                override fun onVideoSizeChanged(videoSize: VideoSize) = update(videoSize)
+            }
+            p.addListener(listener)
+            onDispose { p.removeListener(listener) }
+        }
+    }
+    val fill = zoom && shouldFill(videoAspect, boxAspect)
     AndroidView(
         factory = { ctx ->
             PlayerView(ctx).apply {
@@ -141,13 +168,25 @@ fun PlayerSurface(modifier: Modifier = Modifier, zoom: Boolean = false, isPlayin
         },
         update = { view ->
             if (view.player !== PlaybackController.player) view.player = PlaybackController.player
-            view.resizeMode = if (zoom) AspectRatioFrameLayout.RESIZE_MODE_ZOOM else AspectRatioFrameLayout.RESIZE_MODE_FIT
+            view.resizeMode = if (fill) AspectRatioFrameLayout.RESIZE_MODE_ZOOM else AspectRatioFrameLayout.RESIZE_MODE_FIT
             view.keepScreenOn = isPlaying
         },
         onRelease = { it.player = null },
-        modifier = modifier,
+        modifier = modifier.onSizeChanged { if (it.width > 0 && it.height > 0) boxAspect = it.width.toFloat() / it.height },
     )
 }
+
+/**
+ * Có nên phóng video cho kín khung không? Chỉ khi phần bị cắt mất ≤ [MAX_CROP] mỗi chiều
+ * (ví dụ video 9:16 trên màn hình 9:20 chỉ mất ~10% hai bên – giống app YouTube).
+ */
+internal fun shouldFill(videoAspect: Float, boxAspect: Float): Boolean {
+    if (videoAspect <= 0f || boxAspect <= 0f) return false
+    val crop = if (videoAspect > boxAspect) 1f - boxAspect / videoAspect else 1f - videoAspect / boxAspect
+    return crop <= MAX_CROP
+}
+
+private const val MAX_CROP = 0.2f
 
 // ---------------------------------------------------------------- Thanh tua
 
