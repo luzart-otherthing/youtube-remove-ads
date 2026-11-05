@@ -1,5 +1,6 @@
 package com.luzart.tubesach.ui
 
+import android.os.SystemClock
 import android.app.PendingIntent
 import android.app.PictureInPictureParams
 import android.app.RemoteAction
@@ -294,7 +295,7 @@ class MainActivity : ComponentActivity() {
     override fun onStart() {
         super.onStart()
         PlaybackController.setVideoEnabled(true)
-        if (stoppedAt > 0 && System.currentTimeMillis() - stoppedAt > 30_000) {
+        if (stoppedAt > 0 && SystemClock.elapsedRealtime() - stoppedAt > 30_000) {
             // Bật màn hình / quay lại app sau một lúc: kết nối cũ có thể đã chết → bỏ đi,
             // rồi tự tải lại những gì đang lỗi (video, đề xuất, trang chủ).
             NetworkMonitor.dropIdleConnections()
@@ -309,7 +310,7 @@ class MainActivity : ComponentActivity() {
         // Chạy nền hoặc tắt màn hình: chỉ tải tiếng cho đỡ tốn mạng và pin.
         if (!isChangingConfigurations) {
             PlaybackController.setVideoEnabled(false)
-            stoppedAt = System.currentTimeMillis()
+            stoppedAt = SystemClock.elapsedRealtime() // vẫn chạy khi máy ngủ, không bị ảnh hưởng khi chỉnh giờ
         }
     }
 

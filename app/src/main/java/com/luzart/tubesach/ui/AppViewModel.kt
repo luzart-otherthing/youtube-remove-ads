@@ -91,7 +91,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         if (home.error != null && !home.loading) {
             if (home.selectedChip == 0) refreshHome() else selectChip(home.selectedChip)
         }
-        results.forEach { (q, st) -> if (st.error != null && !st.loading) runSearch(q, resultFilter[q] ?: YouTubeRepository.SearchFilter.ALL) }
+        results.filterValues { it.error != null && !it.loading }.keys.toList()
+            .forEach { q -> runSearch(q, resultFilter[q] ?: YouTubeRepository.SearchFilter.ALL) }
         if (subscriptionFeed.loaded && subscriptionFeed.entries.isEmpty() && store.subscriptions.value.isNotEmpty()) loadSubscriptions(force = true)
         if (shorts.isEmpty() && tab == Tab.SHORTS) ensureShorts()
     }

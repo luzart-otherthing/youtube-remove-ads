@@ -29,7 +29,7 @@ class App : Application(), SingletonImageLoader.Factory {
 
     /** Tài khoản Google (thử nghiệm, không bắt buộc). */
     lateinit var account: YouTubeAccount
-        private set
+        internal set // test thay bằng tài khoản dùng mạng giả
 
     override fun onCreate() {
         super.onCreate()

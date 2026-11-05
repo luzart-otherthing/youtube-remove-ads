@@ -141,6 +141,8 @@ dependencies {
     implementation("io.coil-kt.coil3:coil-network-okhttp:3.3.0")
 
     testImplementation("junit:junit:4.13.2")
+    testImplementation("androidx.media3:media3-test-utils:$media3")
+    testImplementation("androidx.media3:media3-test-utils-robolectric:$media3")
     testImplementation("org.robolectric:robolectric:4.17")
     testImplementation("androidx.test:core-ktx:1.7.0")
     testImplementation("androidx.compose.ui:ui-test-junit4")

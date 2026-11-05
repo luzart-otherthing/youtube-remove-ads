@@ -1,5 +1,6 @@
 package com.luzart.tubesach.innertube
 
+import android.os.SystemClock
 import org.json.JSONObject
 
 /** Một định dạng (luồng hình hoặc tiếng) trong streamingData của YouTube. */
@@ -61,6 +62,7 @@ data class PlayerData(
     val hlsUrl: String?,
     val playbackTrackingUrl: String?,
     val watchtimeTrackingUrl: String?,
+    /** Thời điểm link hết hạn, theo [SystemClock.elapsedRealtime] (không bị lệch khi người dùng chỉnh giờ). */
     val expiresAtMs: Long,
     val captions: List<CaptionTrack> = emptyList(),
 ) {
@@ -175,7 +177,7 @@ data class PlayerData(
                 hlsUrl = sd?.s("hlsManifestUrl"),
                 playbackTrackingUrl = json.s("playbackTracking", "videostatsPlaybackUrl", "baseUrl"),
                 watchtimeTrackingUrl = json.s("playbackTracking", "videostatsWatchtimeUrl", "baseUrl"),
-                expiresAtMs = System.currentTimeMillis() + expires * 1000,
+                expiresAtMs = SystemClock.elapsedRealtime() + expires * 1000,
                 captions = captions,
             )
         }

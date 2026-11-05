@@ -1,5 +1,6 @@
 package com.luzart.tubesach.player
 
+import android.os.SystemClock
 import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Intent
@@ -16,6 +17,7 @@ import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.HttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.source.MediaSource
 import com.luzart.tubesach.data.FeedEntry
 import com.luzart.tubesach.data.LocalStore
 import com.luzart.tubesach.data.QualityMode
@@ -149,6 +151,15 @@ object PlaybackController {
     private class Queued(val video: VideoItem, val data: PlayerData, val caption: CaptionChoice?)
     private var queued: Queued? = null
     private var prefetchingId: String? = null
+
+    /** Video đang phát do "tự phát" mở (không phải người dùng bấm). */
+    private var startedByAutoplay = false
+    /** Số video liên tiếp tự phát bỏ qua vì không phát được. */
+    private var autoSkips = 0
+    /** Video liên quan của video trước (dùng khi video tự phát hiện tại chưa có danh sách liên quan). */
+    private var fallbackRelated: List<VideoItem> = emptyList()
+    /** Video YouTube không cho phát (riêng tư, bị chặn, đã xoá…) – tự phát sẽ bỏ qua. */
+    private val unplayableIds = HashSet<String>()
     /** Dữ liệu /player lấy trước cho video kế tiếp (dùng lại khi bấm "Tiếp theo"). */
     private var prefetched: PlayerData? = null
 
@@ -164,7 +175,63 @@ object PlaybackController {
         scope.launch { NetworkMonitor.reconnected.collect { onResumeOrReconnect() } }
     }
 
+    // ---------------------------------------------------------------- Chỗ nối cho test tự động
+
+    /** Nguồn dữ liệu của trình phát. Test thay bằng dữ liệu giả để mô phỏng mất mạng, link hết hạn… */
+    internal interface Backend {
+        suspend fun player(videoId: String): PlayerData
+        suspend fun watch(videoId: String): WatchInfo
+        suspend fun relatedMore(token: String): com.luzart.tubesach.data.FeedPage
+        suspend fun streamInfo(url: String): org.schabi.newpipe.extractor.stream.StreamInfo
+        fun buildDirect(data: PlayerData, metadata: MediaMetadata, subtitle: MediaItem.SubtitleConfiguration?): MediaSource
+        fun createPlayer(context: Context): ExoPlayer? = null
+    }
+
+    private val realBackend = object : Backend {
+        override suspend fun player(videoId: String) = YouTubeRepository.player(videoId)
+        override suspend fun watch(videoId: String) = YouTubeRepository.watch(videoId)
+        override suspend fun relatedMore(token: String) = YouTubeRepository.relatedMore(token)
+        override suspend fun streamInfo(url: String) = YouTubeRepository.streamInfo(url)
+        override fun buildDirect(data: PlayerData, metadata: MediaMetadata, subtitle: MediaItem.SubtitleConfiguration?) =
+            sources.buildDirect(data, metadata, subtitle)
+    }
+
+    @androidx.annotation.VisibleForTesting
+    internal var backend: Backend = realBackend
+
+    /** Test: trả lại trạng thái ban đầu (giải phóng trình phát, dùng [newBackend]). */
+    @androidx.annotation.VisibleForTesting
+    internal fun resetForTest(newBackend: Backend?) {
+        close()
+        // Không gọi release(): trình phát của test trước có thể dùng đồng hồ giả đã dừng → release() chờ mãi.
+        _player?.removeListener(playerListener)
+        _player = null
+        backend = newBackend ?: realBackend
+        playedIds.clear()
+        unplayableIds.clear()
+        autoSkips = 0
+        startedByAutoplay = false
+        fallbackRelated = emptyList()
+        retryCount = 0
+        currentData = null
+        prefetchingId = null
+        _loop.value = false
+        _caption.value = null
+        _sleepTimer.value = null
+    }
+
+    @androidx.annotation.VisibleForTesting
+    internal val queuedVideoId: String? get() = queued?.video?.id
+
+    /** Test: chạy ngay bước "sắp hết video → xếp sẵn video kế tiếp" (bình thường chạy mỗi 5 giây). */
+    @androidx.annotation.VisibleForTesting
+    internal fun tickForTest() = prepareNextIfNearEnd()
+
     private fun createPlayer(): ExoPlayer {
+        backend.createPlayer(appContext)?.let { p ->
+            p.addListener(playerListener)
+            return p
+        }
         val p = ExoPlayer.Builder(appContext)
             .setAudioAttributes(
                 AudioAttributes.Builder()
@@ -191,6 +258,7 @@ object PlaybackController {
         override fun onPlaybackStateChanged(state: Int) {
             if (state == Player.STATE_READY) {
                 retryCount = 0
+                autoSkips = 0
                 _error.value = null
                 _loading.value = false
             }
@@ -198,7 +266,8 @@ object PlaybackController {
         }
 
         override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
-            if (reason != Player.MEDIA_ITEM_TRANSITION_REASON_AUTO) return
+            // AUTO: hết video. SEEK: nút "Tiếp" trên thông báo, màn hình khoá, tai nghe Bluetooth.
+            if (reason != Player.MEDIA_ITEM_TRANSITION_REASON_AUTO && reason != Player.MEDIA_ITEM_TRANSITION_REASON_SEEK) return
             val q = queued ?: return
             if (mediaItem?.mediaId != q.video.id) return
             queued = null
@@ -212,6 +281,18 @@ object PlaybackController {
             val network = error.errorCode == PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED ||
                 error.errorCode == PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT
             val current = _nowPlaying.value
+            val q = queued
+            val p = player
+            if (q != null && current != null && p.currentMediaItem?.mediaId != q.video.id &&
+                p.duration != C.TIME_UNSET && p.duration - p.currentPosition < 3_000
+            ) {
+                // Video hiện tại đã gần hết, lỗi là do video kế tiếp (đã xếp sẵn) không tải được
+                // → mở video kế tiếp theo cách thường (lấy link mới), không phát lại đoạn cuối video cũ.
+                queued = null
+                store.savePosition(current.video.id, 0)
+                play(q.video, resume = false, auto = true)
+                return
+            }
             if (current != null && retryCount < MAX_RETRIES) {
                 // Link hết hạn (403) → lấy link mới. Mất mạng (vừa bật màn hình, đổi Wi-Fi/4G) → chờ chút rồi thử lại.
                 // Lỗi khác → chuyển sang NewPipeExtractor dự phòng.
@@ -226,16 +307,43 @@ object PlaybackController {
                     if (_nowPlaying.value?.video?.id == current.video.id) load(current.video, pos, forceFallback = fallback)
                 }
             } else {
-                _loading.value = false
-                _error.value = if (network) "Không có kết nối mạng. Nhấn để thử lại." else "Đã xảy ra lỗi. Nhấn để thử lại."
+                giveUp(if (network) "Không có kết nối mạng. Nhấn để thử lại." else "Đã xảy ra lỗi. Nhấn để thử lại.", network)
             }
         }
+    }
+
+    /**
+     * Không phát được video hiện tại. Nếu video do "tự phát" mở (ví dụ đang nghe lúc tắt màn hình) thì
+     * bỏ qua sang video tiếp theo – tối đa [MAX_AUTO_SKIPS] lần liên tiếp – thay vì dừng im lặng.
+     * Mất mạng thì không bỏ qua (video nào cũng sẽ lỗi): báo lỗi, có mạng lại sẽ tự thử lại.
+     */
+    private fun giveUp(message: String, network: Boolean) {
+        _loading.value = false
+        val current = _nowPlaying.value
+        if (current != null && !network) {
+            unplayableIds.add(current.video.id)
+            if (startedByAutoplay && autoSkips < MAX_AUTO_SKIPS && canAutoAdvance(current)) {
+                val next = nextCandidate()
+                if (next != null) {
+                    autoSkips++
+                    play(next, resume = false, auto = true)
+                    return
+                }
+            }
+        }
+        _error.value = message
     }
 
     // ---------------------------------------------------------------- Mở video
 
     /** Mở một video. Nếu đã xem dở, phát tiếp từ chỗ đã dừng. */
-    fun play(video: VideoItem, resume: Boolean = true, asShort: Boolean = false) {
+    fun play(video: VideoItem, resume: Boolean = true, asShort: Boolean = false) = play(video, resume, asShort, auto = false)
+
+    /** [auto] = true: mở do tự phát (hết video), không phải người dùng bấm. */
+    private fun play(video: VideoItem, resume: Boolean, asShort: Boolean = false, auto: Boolean) {
+        fallbackRelated = if (auto) _nowPlaying.value?.related.orEmpty().ifEmpty { fallbackRelated } else emptyList()
+        startedByAutoplay = auto
+        if (!auto) autoSkips = 0
         _nowPlaying.value?.video?.takeIf { it.id != video.id && !asShort && _nowPlaying.value?.isShort == false }
             ?.let { backStack.addLast(it) }
         saveCurrentPosition()
@@ -267,7 +375,7 @@ object PlaybackController {
     /** Link phát của YouTube hết hạn sau ~6 giờ (tạm dừng lâu, tắt màn hình qua đêm…). */
     private fun linkExpired(): Boolean {
         val d = currentData ?: return false
-        return System.currentTimeMillis() > d.expiresAtMs - 5 * 60_000L
+        return SystemClock.elapsedRealtime() > d.expiresAtMs - 5 * 60_000L
     }
 
     /**
@@ -329,9 +437,9 @@ object PlaybackController {
                 var item = video
                 var directError: Throwable? = null
                 val source = if (!forceFallback) {
-                    val cached = prefetched?.takeIf { it.videoId == video.id && System.currentTimeMillis() < it.expiresAtMs - 5 * 60_000L }
+                    val cached = prefetched?.takeIf { it.videoId == video.id && SystemClock.elapsedRealtime() < it.expiresAtMs - 5 * 60_000L }
                     prefetched = null
-                    val data = cached ?: runCatching { YouTubeRepository.player(video.id) }
+                    val data = cached ?: runCatching { backend.player(video.id) }
                         .onFailure { directError = it }
                         .getOrNull()
                     if (data != null && (data.dashManifest() != null || data.hlsUrl != null)) {
@@ -346,21 +454,24 @@ object PlaybackController {
                         if (fresh) autoSelectCaption(data.captions)
                         tracker.begin(data, startPositionMs)
                         trackForAccount(data.videoId)
-                        sources.buildDirect(data, metadataOf(item), subtitleConfig())
+                        backend.buildDirect(data, metadataOf(item), subtitleConfig())
                     } else null
                 } else null
 
                 val finalSource = source ?: run {
+                    // Mất mạng (không phải YouTube đổi cách hoạt động) → NewPipe cũng không tải được,
+                    // thử thêm chỉ làm người dùng chờ lâu hơn. Báo lỗi mạng ngay; có mạng lại sẽ tự tải lại.
+                    val d = directError
+                    if (d != null && isNetworkError(d)) throw d
                     // Dự phòng: NewPipeExtractor
                     usingFallback = true
                     currentData = null
                     tracker.clear()
                     val info = try {
-                        YouTubeRepository.streamInfo(video.url)
+                        backend.streamInfo(video.url)
                     } catch (e: Exception) {
                         if (e is CancellationException) throw e
                         // Ưu tiên thông báo của YouTube (đã là tiếng Việt) nếu có.
-                        val d = directError
                         throw if (d is InnerTubeException && d.code == 0) d else e
                     }
                     val full = VideoItem.from(info)
@@ -383,11 +494,13 @@ object PlaybackController {
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Throwable) {
-                _loading.value = false
-                _error.value = friendlyMessage(e)
+                giveUp(friendlyMessage(e), isNetworkError(e))
             }
         }
     }
+
+    /** Lỗi do mạng (không kết nối được, hết thời gian chờ…), khác với lỗi do YouTube trả về. */
+    private fun isNetworkError(e: Throwable): Boolean = e is IOException && e !is InnerTubeException
 
     /** Ghép thông tin từ /player vào video đang mở (khi mở từ link chia sẻ chỉ có mã video). */
     private fun merge(video: VideoItem, data: PlayerData) = video.copy(
@@ -410,7 +523,7 @@ object PlaybackController {
      */
     private suspend fun fetchWatch(videoId: String, positionMs: Long): Boolean {
         val w = try {
-            YouTubeRepository.watch(videoId)
+            backend.watch(videoId)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Throwable) {
@@ -458,7 +571,7 @@ object PlaybackController {
         _relatedLoading.value = true
         scope.launch {
             val page = try {
-                YouTubeRepository.relatedMore(token)
+                backend.relatedMore(token)
             } catch (e: CancellationException) {
                 _relatedLoading.value = false
                 throw e
@@ -572,7 +685,8 @@ object PlaybackController {
     }
 
     private fun nextCandidate(): VideoItem? =
-        _nowPlaying.value?.related?.firstOrNull { it.id !in playedIds && !it.isLive && !it.isShort }
+        _nowPlaying.value?.related.orEmpty().ifEmpty { fallbackRelated }
+            .firstOrNull { it.id !in playedIds && it.id !in unplayableIds && !it.isLive && !it.isShort }
 
     fun setSpeed(speed: Float) {
         _speed.value = speed
@@ -657,7 +771,7 @@ object PlaybackController {
         val pos = p.currentPosition
         val playing = p.playWhenReady
         queued = null // setMediaSource thay cả danh sách phát → xếp lại video kế tiếp sau
-        p.setMediaSource(sources.buildDirect(data, metadataOf(item), subtitleConfig()), pos)
+        p.setMediaSource(backend.buildDirect(data, metadataOf(item), subtitleConfig()), pos)
         p.prepare()
         p.playWhenReady = playing
     }
@@ -760,12 +874,12 @@ object PlaybackController {
         if (!store.settings.value.autoplay || _loop.value) return
         val next = nextCandidate()
         if (next != null) {
-            play(next, resume = false)
+            play(next, resume = false, auto = true)
         } else if (current.watch == null) {
             // Chưa có danh sách video liên quan (lỗi mạng lúc mở video) → tải lại rồi phát tiếp.
             scope.launch {
                 if (fetchWatch(current.video.id, 0) && _player?.playbackState == Player.STATE_ENDED) {
-                    nextCandidate()?.let { play(it, resume = false) }
+                    nextCandidate()?.let { play(it, resume = false, auto = true) }
                 }
             }
         }
@@ -822,11 +936,13 @@ object PlaybackController {
         prefetchingId = next.id
         scope.launch {
             val data = try {
-                prefetched?.takeIf { it.videoId == next.id } ?: YouTubeRepository.player(next.id)
+                prefetched?.takeIf { it.videoId == next.id && SystemClock.elapsedRealtime() < it.expiresAtMs - 5 * 60_000L }
+                    ?: backend.player(next.id)
             } catch (e: CancellationException) {
                 prefetchingId = null
                 throw e
             } catch (e: Throwable) {
+                if (!isNetworkError(e)) unplayableIds.add(next.id) // video không phát được → tự phát bỏ qua
                 null
             } finally {
                 if (prefetchingId == next.id) prefetchingId = null
@@ -839,7 +955,7 @@ object PlaybackController {
             if (usingFallback || p.currentMediaItem?.mediaId != current.video.id || queued != null) return@launch
             val item = merge(next, data)
             val caption = captionFor(data.captions)
-            val source = runCatching { sources.buildDirect(data, metadataOf(item), subtitleConfig(caption)) }.getOrNull()
+            val source = runCatching { backend.buildDirect(data, metadataOf(item), subtitleConfig(caption)) }.getOrNull()
                 ?: return@launch
             p.addMediaSource(p.currentMediaItemIndex + 1, source)
             queued = Queued(item, data, caption)
@@ -860,6 +976,8 @@ object PlaybackController {
     private fun onAutoAdvanced(q: Queued) {
         val p = player
         val prev = _nowPlaying.value
+        fallbackRelated = prev?.related.orEmpty()
+        startedByAutoplay = true
         if (prev != null) {
             store.savePosition(prev.video.id, 0)
             if (!prev.isShort && prev.video.id != q.video.id) backStack.addLast(prev.video)
@@ -916,4 +1034,5 @@ object PlaybackController {
 
     const val SEEK_MS = 10_000L
     private const val MAX_RETRIES = 3
+    private const val MAX_AUTO_SKIPS = 3
 }

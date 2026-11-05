@@ -5,6 +5,7 @@ import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
 import android.net.NetworkRequest
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -28,32 +29,44 @@ object NetworkMonitor {
 
     private lateinit var http: OkHttpClient
     private val main = Handler(Looper.getMainLooper())
-    private var lastNetwork: Network? = null
+    private var current: Network? = null
+    private var blocked = false
 
     fun init(context: Context, client: OkHttpClient) {
         http = client
         val cm = context.getSystemService(ConnectivityManager::class.java) ?: return
-        val request = NetworkRequest.Builder()
-            .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
-            .build()
-        runCatching {
-            cm.registerNetworkCallback(
-                request,
-                object : ConnectivityManager.NetworkCallback() {
-                    override fun onAvailable(network: Network) {
-                        main.post {
-                            val changed = lastNetwork != null && lastNetwork != network
-                            val wasLost = lastNetwork == null
-                            lastNetwork = network
-                            if (changed || wasLost) onReconnected()
-                        }
-                    }
+        current = runCatching { cm.activeNetwork }.getOrNull()
+        blocked = false
+        val callback = object : ConnectivityManager.NetworkCallback() {
+            override fun onAvailable(network: Network) {
+                main.post {
+                    val previous = current
+                    current = network
+                    // Lần gọi đầu tiên (đúng mạng đang dùng) không tính; chỉ báo khi có mạng mới / có lại mạng.
+                    if (previous != network) onReconnected()
+                }
+            }
 
-                    override fun onLost(network: Network) {
-                        main.post { if (lastNetwork == network) lastNetwork = null }
-                    }
-                },
-            )
+            override fun onLost(network: Network) {
+                main.post { if (current == network) current = null }
+            }
+
+            /** Android 10+: hết bị chặn mạng (ví dụ máy vừa ra khỏi chế độ ngủ sâu Doze khi bật màn hình). */
+            override fun onBlockedStatusChanged(network: Network, isBlocked: Boolean) {
+                main.post {
+                    val was = blocked
+                    blocked = isBlocked
+                    if (was && !isBlocked) onReconnected()
+                }
+            }
+        }
+        runCatching {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                cm.registerDefaultNetworkCallback(callback) // chỉ theo dõi mạng đang dùng (Wi-Fi hoặc 4G)
+            } else {
+                val request = NetworkRequest.Builder().addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET).build()
+                cm.registerNetworkCallback(request, callback)
+            }
         }
     }
 
