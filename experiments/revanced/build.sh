@@ -147,17 +147,27 @@ patch() { # $1 = tên file ra, các tham số còn lại = tuỳ chọn thêm ch
 # Bản không microG: GmsCore support vẫn đổi tên gói (để cài song song YouTube gốc, không cần root)
 # nhưng trỏ mọi lời gọi Google Play Services về chính com.google.android.gms của máy.
 FAILED=0
-# (CLI v6: tuỳ chọn -O phải đứng TRƯỚC -e của bản vá nó áp dụng.)
-patch youtube-revanced-khong-microg -OgmsCoreVendorGroupId=com.google --ei "$GMS_INDEX" || FAILED=1
+# Theo tài liệu CLI: -O đứng NGAY SAU -e/--ei của bản vá mà nó áp dụng.
+# ReVanced Patcher v22 tra tuỳ chọn theo TÊN ("GmsCore vendor group ID"); bộ vá đời cũ dùng khoá
+# "gmsCoreVendorGroupId". Truyền cả hai – cái không tồn tại chỉ bị CLI cảnh báo rồi bỏ qua.
+patch youtube-revanced-khong-microg --ei "$GMS_INDEX" \
+  "-OGmsCore vendor group ID=com.google" -OgmsCoreVendorGroupId=com.google || FAILED=1
 # Bản chuẩn (cần microG) – để đối chứng.
 patch youtube-revanced-chuan || FAILED=1
 
-log "6. Kiểm tra: bản không microG còn gọi GmsCore (app.revanced.android.gms) không?"
+log "6. Kiểm tra: tuỳ chọn có thật sự đổi nơi gọi Google Play Services không?"
+count_gms() { unzip -p "$1" 'classes*.dex' | grep -a -o "$2" | wc -l || true; }
 for name in youtube-revanced-khong-microg youtube-revanced-chuan; do
   [ -f "$OUT/$name.apk" ] || continue
-  n=$(unzip -p "$OUT/$name.apk" 'classes*.dex' | grep -a -o 'app\.revanced\.android\.gms' | wc -l || true)
-  echo "$name: $n chỗ trong mã (dex) nhắc tới app.revanced.android.gms" | tee -a "$OUT/phien-ban.txt"
+  echo "$name: $(count_gms "$OUT/$name.apk" 'app\.revanced\.android\.gms') chỗ trong mã (dex) gọi app.revanced.android.gms," \
+    "$(count_gms "$OUT/$name.apk" 'com\.google\.android\.gms') chỗ gọi com.google.android.gms" | tee -a "$OUT/phien-ban.txt"
 done
+if [ -f "$OUT/youtube-revanced-khong-microg.apk" ] && [ -f "$OUT/youtube-revanced-chuan.apk" ] &&
+   [ "$(count_gms "$OUT/youtube-revanced-khong-microg.apk" 'app\.revanced\.android\.gms')" -ge \
+     "$(count_gms "$OUT/youtube-revanced-chuan.apk" 'app\.revanced\.android\.gms')" ]; then
+  echo "Tuỳ chọn KHÔNG được áp dụng: bản 'không microG' vẫn gọi GmsCore như bản chuẩn." | tee -a "$OUT/phien-ban.txt"
+  FAILED=1
+fi
 
 ls -la "$OUT"
 exit $FAILED
