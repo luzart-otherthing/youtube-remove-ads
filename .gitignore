@@ -7,3 +7,11 @@ local.properties
 captures/
 .externalNativeBuild/
 .cxx/
+
+# iOS (dự án Xcode được tạo bằng XcodeGen từ ios/project.yml)
+ios/TubeSach.xcodeproj/
+ios/TubeSach/Info.plist
+ios/build/
+ios/TubeSachCore/.build/
+ios/TubeSachCore/.swiftpm/
+*.ipa

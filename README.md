@@ -1,6 +1,6 @@
 # Tube Sạch – xem YouTube không quảng cáo
 
-Ứng dụng Android có giao diện theo kiểu app YouTube, **không quảng cáo, không cần đăng nhập**, có hình trong hình, phát khi tắt màn hình và SponsorBlock. Toàn bộ nội dung bằng tiếng Việt: trang chủ, đề xuất, thịnh hành, bình luận, phụ đề.
+Ứng dụng Android và **iPhone/iPad** có giao diện theo kiểu app YouTube, **không quảng cáo, không cần đăng nhập**, có hình trong hình, phát khi tắt màn hình và SponsorBlock. Toàn bộ nội dung bằng tiếng Việt: trang chủ, đề xuất, thịnh hành, bình luận, phụ đề.
 
 | Trang chủ | Xem video | Toàn màn hình |
 |---|---|---|
@@ -80,7 +80,7 @@ Mặc định app **không cần và không đề nghị đăng nhập**. Ở cu
 
 Tên và logo của app được giữ riêng (không dùng logo YouTube) để tránh vi phạm nhãn hiệu, và để Play Protect không cảnh báo "app giả mạo".
 
-## Cài đặt lên điện thoại
+## Cài đặt lên điện thoại Android
 
 1. Vào **Releases** của repo (hoặc *Actions → lần chạy mới nhất → Artifacts*), tải file `TubeSach-2.0.x.apk`.
 2. Mở file, cho phép cài từ nguồn này nếu được hỏi, rồi bấm **Cài đặt**. Bản mới cài đè lên bản cũ, không mất lịch sử.
@@ -88,6 +88,76 @@ Tên và logo của app được giữ riêng (không dùng logo YouTube) để 
 Yêu cầu Android 6.0 trở lên; hình trong hình cần Android 8.0 trở lên.
 
 Một số máy (Xiaomi, Oppo, Vivo, Samsung) có chế độ tiết kiệm pin quá mạnh, làm mất tiếng khi tắt màn hình. Khi đó vào *Cài đặt → Pin → Tube Sạch → Không giới hạn*.
+
+## Bản iPhone / iPad (iOS)
+
+Có bản iOS viết bằng SwiftUI trong thư mục `ios/`, dùng cùng cách lấy dữ liệu với bản Android: trang chủ, Shorts, kênh đăng ký, tìm kiếm (có gợi ý, dán link YouTube để mở thẳng), trang xem, bình luận, trang kênh, SponsorBlock, Return YouTube Dislike, cỡ chữ lớn, giao diện sáng/tối.
+
+Trình phát là trình phát gốc của iOS nên có sẵn:
+
+- tự đổi chất lượng theo mạng (luồng HLS của YouTube), phụ đề, chỉnh tốc độ, AirPlay lên TV;
+- hình trong hình khi về màn hình chính;
+- phát tiếp khi tắt màn hình, có nút điều khiển trên màn hình khoá và tai nghe.
+
+Giống bản Android, bản iOS còn có:
+
+- tải thêm video liên quan khi cuộn xuống;
+- tải sẵn video tiếp theo để tự phát ngay, tự bỏ qua video không xem được (tối đa 3 video liền);
+- có mạng lại thì tự tải lại; tạm dừng lâu thì tự lấy link phát mới;
+- Shorts dọc phủ kín màn hình, có nút bình luận;
+- đăng nhập tài khoản Google (thử nghiệm, xem mục ở trên). Cookie đăng nhập nằm trong Keychain của máy.
+
+| Trang chủ | Xem video | Tìm kiếm | Kênh | Giao diện tối |
+|---|---|---|---|---|
+| ![](docs/screenshots/ios_iphone_01_trang_chu.jpg) | ![](docs/screenshots/ios_iphone_02_xem_video.jpg) | ![](docs/screenshots/ios_iphone_03_tim_kiem.jpg) | ![](docs/screenshots/ios_iphone_05_kenh.jpg) | ![](docs/screenshots/ios_iphone_07_xem_video_toi.jpg) |
+
+| iPad – trang chủ | iPad – xem video | Bạn |
+|---|---|---|
+| ![](docs/screenshots/ios_ipad_01_trang_chu.jpg) | ![](docs/screenshots/ios_ipad_02_xem_video.jpg) | ![](docs/screenshots/ios_iphone_06_ban.jpg) |
+
+> Ảnh chụp tự động trên iPhone 16 và iPad Pro giả lập (GitHub Actions, commit có `[screenshots]`), dữ liệu YouTube thật.
+
+Trên iPad, khi xoay ngang, video liên quan nằm bên phải. Trên iPhone, khi xoay ngang, video tự phóng to hết màn hình. Yêu cầu iOS 16 trở lên (iPhone 8 trở về sau).
+
+### Vì sao không có trên App Store?
+
+Apple không duyệt app xem YouTube chặn quảng cáo, nên phải **tự cài file `.ipa`** (gọi là *sideload*). Mỗi lần đẩy code lên `main`, GitHub Actions tự build file `TubeSach-1.0.x.ipa`:
+
+- vào **Releases**, tìm bản có tên *Tube Sạch iOS 1.0.x*;
+- hoặc vào *Actions → Build iOS → lần chạy mới nhất → Artifacts*.
+
+Repo đang để riêng tư nên bạn phải đăng nhập GitHub mới tải được.
+
+File `.ipa` này **chưa ký**. Công cụ cài đặt bên dưới sẽ ký lại bằng Apple ID của bạn.
+
+### Cách 1: Sideloadly (dễ nhất, cần máy tính và cáp)
+
+1. Cài **Sideloadly** (sideloadly.io) trên máy tính Windows hoặc Mac. Trên Windows cần cài thêm iTunes và iCloud **bản tải từ trang Apple** (không dùng bản trong Microsoft Store).
+2. Cắm iPhone/iPad vào máy tính, mở khoá máy và bấm **Tin cậy**.
+3. Kéo file `TubeSach-1.0.x.ipa` vào Sideloadly, nhập Apple ID rồi bấm **Start**. Nên dùng một Apple ID phụ.
+4. Trên iPhone/iPad, vào *Cài đặt → Cài đặt chung → Quản lý VPN & thiết bị*, chọn Apple ID vừa dùng rồi bấm **Tin cậy**.
+5. Từ iOS 16, cần bật thêm *Cài đặt → Quyền riêng tư & Bảo mật → Chế độ nhà phát triển*. Máy sẽ khởi động lại và hỏi xác nhận.
+
+Với Apple ID **miễn phí**, app chỉ chạy được **7 ngày**. Hết hạn thì cắm máy và bấm Start lại; lịch sử, kênh đăng ký vẫn còn. Sideloadly có tuỳ chọn tự làm mới qua Wi-Fi khi máy tính đang bật. Mỗi Apple ID miễn phí chỉ cài được tối đa 3 app tự ký trên một máy.
+
+### Cách 2: AltStore hoặc SideStore (tự gia hạn)
+
+- **AltStore** (altstore.io): cài AltServer trên máy tính và AltStore trên iPhone. AltStore tự gia hạn 7 ngày khi iPhone và máy tính dùng chung Wi-Fi.
+- **SideStore** (sidestore.io): chỉ cần máy tính ở lần cài đặt đầu tiên, sau đó tự gia hạn ngay trên iPhone. Làm theo hướng dẫn trên trang của SideStore.
+
+Trong AltStore/SideStore, vào tab *My Apps*, bấm **+** rồi chọn file `.ipa`.
+
+### Cách 3: Tài khoản Apple Developer trả phí (99 USD/năm)
+
+Đăng nhập Sideloadly bằng Apple ID đã đăng ký Apple Developer Program. App chạy được **1 năm**, không giới hạn 3 app và không phải gia hạn hằng tuần. Một tài khoản cài được cho tối đa 100 iPhone và 100 iPad mỗi năm. Cách này hợp khi cài cho cả nhà, nhất là cho ông bà, bố mẹ.
+
+Bạn cũng có thể tự build bằng Xcode trên Mac (xem *Build và test*): chọn Apple ID ở *Signing & Capabilities*, cắm máy rồi bấm Run.
+
+### Cập nhật bản iOS
+
+Tải file `.ipa` mới rồi cài lại bằng cùng công cụ, cùng Apple ID. Bản mới cài đè lên bản cũ, không mất dữ liệu.
+
+App iOS không dùng được NewPipeExtractor (thư viện Java). Khi YouTube đổi cách hoạt động, app tự thử máy khách iOS nếu máy khách visionOS lỗi. Nếu vẫn lỗi thì cần sửa `ios/TubeSachCore` rồi cài bản build mới.
 
 ## Khi YouTube thay đổi làm app lỗi
 
@@ -104,6 +174,14 @@ Một số máy (Xiaomi, Oppo, Vivo, Samsung) có chế độ tiết kiệm pin 
 ./gradlew :app:testDebugUnitTest -Dscreenshots=true --tests '*ScreenshotTest*'  # chụp lại ảnh màn hình
 ```
 
+Bản iOS:
+
+```bash
+cd ios/TubeSachCore && swift test                                   # test phần lõi (chạy được cả trên Linux)
+cd ios/TubeSachCore && ONLINE=1 swift test --filter OnlineTests     # gọi YouTube thật: trang chủ, tìm kiếm, HLS, bình luận, kênh, Shorts
+brew install xcodegen && cd ios && xcodegen generate && open TubeSach.xcodeproj   # mở dự án trong Xcode (cần Mac)
+```
+
 APK được ký bằng khoá cố định `app/signing/tubesach.jks` để bản cập nhật cài đè được. Nếu repo để công khai, nên tạo khoá riêng: tạo bằng `keytool`, đổi sang base64, rồi lưu vào các secret `SIGNING_KEYSTORE_BASE64`, `SIGNING_STORE_PASSWORD`, `SIGNING_KEY_ALIAS`, `SIGNING_KEY_PASSWORD`. Làm việc này **trước khi** cài cho mọi người.
 
 ## Cấu trúc mã
@@ -118,6 +196,18 @@ app/src/main/java/com/luzart/tubesach/
 │                   VideoCodecSupport (máy có giải mã VP9 phần cứng không)
 └── ui/             TubeApp (khung chính), screens/ (Trang chủ, Shorts, Kênh đăng ký, Bạn, Tìm kiếm, Kênh, Xem, Cài đặt),
                     player/ (lớp điều khiển, thanh tua, bảng ⚙, trình phát mini), theme/ (màu sáng/tối)
+```
+
+Bản iOS:
+
+```
+ios/
+├── project.yml      cấu hình dự án Xcode (XcodeGen)
+├── TubeSachCore/    lõi Swift (build/test được trên Linux): InnerTube, Parser (đọc cả bình luận),
+│                    PlayerData (luồng HLS), SponsorBlock, Return YouTube Dislike, kênh đăng ký (RSS + dự phòng InnerTube)
+└── TubeSach/        app SwiftUI: AppModel (điều hướng, trang chủ, trang xem, kênh, Shorts),
+                     Player/ (AVPlayer: HLS, hình trong hình, phát nền, màn hình khoá), Views/ (các màn hình),
+                     Data/ (lưu cài đặt, lịch sử, kênh đăng ký trên máy)
 ```
 
 ## Lưu ý
