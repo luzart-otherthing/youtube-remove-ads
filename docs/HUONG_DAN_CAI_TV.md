@@ -86,6 +86,8 @@ Chọn **một** trong các cách dưới. **Cách 1** dễ nhất nếu bạn c
 1. Khi chọn file `TubeSachTV.apk`, lần đầu TV sẽ báo **"TV của bạn không được phép cài đặt ứng dụng không rõ nguồn gốc từ nguồn này"**. Chọn **Cài đặt** (*Settings*) trong thông báo đó.
    - Nếu không có nút đó, tự vào: **Cài đặt → Ứng dụng → Bảo mật và quyền hạn chế → Nguồn không xác định**
      (*Settings → Apps → Security & restrictions → Unknown sources*).
+   - Ở một số bản Google TV mới, mục này nằm ở: **Cài đặt → Ứng dụng → Quyền truy cập đặc biệt của ứng dụng → Cài đặt ứng dụng không rõ nguồn gốc**
+     (*Special app access → Install unknown apps*).
 2. **Bật** cho app bạn đang dùng để mở file (*Send files to TV*, *File Commander* hoặc *Downloader*).
 3. Bấm **Quay lại**, chọn lại file APK → **Cài đặt** (*Install*).
 4. Nếu **Google Play Protect** cảnh báo "Ứng dụng chưa được xác minh", chọn **Thêm chi tiết** → **Vẫn cài đặt** (*Install anyway*). Cảnh báo này hiện với mọi app không có trên Google Play.
@@ -144,6 +146,9 @@ Không. TV và điện thoại lưu riêng. Không có tài khoản nên không 
 
 **App báo lỗi / không phát được?**
 YouTube thỉnh thoảng thay đổi cách hoạt động. Bấm **Thử lại** trước. Nếu vẫn lỗi, cài bản mới nhất: cài đè lên bản cũ, không mất lịch sử. Nếu repo GitHub để công khai, app tự báo khi có bản mới, tự tải và cài ngay trên TV.
+
+**Sau này Google có chặn cài app ngoài không?**
+Google bắt đầu yêu cầu "xác minh nhà phát triển" với app cài ngoài Google Play. Từ 30/9/2026 áp dụng ở Brazil, Indonesia, Singapore, Thái Lan; dự kiến áp dụng toàn cầu từ 2027. Việt Nam chưa nằm trong đợt đầu. Khi bị áp dụng, cài bằng máy tính (**Cách 4**, `adb install`) vẫn được phép. Google cũng có một cách cài nâng cao cho người dùng rành máy.
 
 **Cài bản mới bị báo "Ứng dụng chưa được cài đặt"?**
 Thường do bản cũ được ký bằng khoá khác (ví dụ đã đổi khoá ký trong GitHub Secrets). Gỡ bản cũ (*Cài đặt → Ứng dụng → Tube Sạch TV → Gỡ cài đặt*) rồi cài lại.
