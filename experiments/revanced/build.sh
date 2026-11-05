@@ -43,6 +43,25 @@ log "2. Tải bộ vá ReVanced từ $PATCHES_API"
 curl -fsSL "$PATCHES_API/patches" -o "$WORK/patches.json"
 python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); print("Bộ vá:", d.get("version"), "ngày", d.get("created_at"))' "$WORK/patches.json" | tee "$OUT/phien-ban.txt"
 curl -fsSL "$PATCHES_API/patches.rvp" -o "$WORK/patches.rvp"
+echo "SHA-256 patches.rvp: $(sha256sum "$WORK/patches.rvp" | cut -d' ' -f1)" >> "$OUT/phien-ban.txt"
+
+log "2b. Kiểm tra chữ ký PGP của bộ vá (sai chữ ký → dừng)"
+# Khoá công khai lấy từ API của ReVanced – đúng nguồn mà ReVanced Manager dùng để kiểm tra.
+curl -fsSL "$PATCHES_API/patches.rvp.asc" -o "$WORK/patches.rvp.asc"
+curl -fsSL "$PATCHES_API/patches/keys" -o "$WORK/keys.json"
+python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["patches_public_key"])' "$WORK/keys.json" > "$WORK/revanced-public-key.asc"
+export GNUPGHOME="$WORK/gnupg"
+mkdir -p -m 700 "$GNUPGHOME"
+gpg --batch --quiet --import "$WORK/revanced-public-key.asc"
+gpg --batch --show-keys --with-fingerprint "$WORK/revanced-public-key.asc" | grep -E '^ +[0-9A-F ]{40,}|^uid' | sed 's/^/khoá ReVanced: /' | tee -a "$OUT/phien-ban.txt"
+if gpg --batch --status-fd 1 --verify "$WORK/patches.rvp.asc" "$WORK/patches.rvp" 2>/dev/null | grep '^\[GNUPG:\] VALIDSIG' | tee -a "$OUT/phien-ban.txt"; then
+  echo "Chữ ký PGP của bộ vá: HỢP LỆ" | tee -a "$OUT/phien-ban.txt"
+else
+  echo "Chữ ký PGP của bộ vá KHÔNG hợp lệ → dừng lại."
+  exit 1
+fi
+# CLI v6 còn đòi thêm "chứng thực build" (sigstore) từ repo GitHub của bộ vá. Repo đó không còn trên GitHub (404,
+# ReVanced chuyển sang GitLab) nên không có file chứng thực → chữ ký PGP đã kiểm ở trên bằng gpg, CLI được báo bỏ qua (-b).
 echo "CLI: $(basename "$CLI")" >> "$OUT/phien-ban.txt"
 echo "YouTube: $YT_VERSION" >> "$OUT/phien-ban.txt"
 
@@ -94,16 +113,15 @@ log "4. Danh sách bản vá cho YouTube (ghi vào danh-sach-ban-va.txt)"
 java -jar "$CLI" list-patches --help > "$OUT/cli-list-patches-help.txt" 2>&1 || true
 java -jar "$CLI" patch --help > "$OUT/cli-patch-help.txt" 2>&1 || true
 cat "$OUT/cli-patch-help.txt"
-java -jar "$CLI" list-patches --with-packages --with-versions --with-options \
-  --filter-package-name com.google.android.youtube "$WORK/patches.rvp" > "$OUT/danh-sach-ban-va.txt" 2>&1 \
-  || java -jar "$CLI" list-patches -p "$WORK/patches.rvp" > "$OUT/danh-sach-ban-va.txt" 2>&1 || true
+java -jar "$CLI" list-patches -p "$WORK/patches.rvp" -b --packages --versions --options \
+  --filter-package-name com.google.android.youtube > "$OUT/danh-sach-ban-va.txt" 2>&1 || true
 head -c 4000 "$OUT/danh-sach-ban-va.txt"
 
 patch() { # $1 = tên file ra, các tham số còn lại = tuỳ chọn thêm cho CLI
   local name=$1; shift
   log "5. Vá: $name"
   java -jar "$CLI" patch \
-    -p "$WORK/patches.rvp" \
+    -p "$WORK/patches.rvp" -b \
     -o "$OUT/$name.apk" \
     --keystore "$WORK/$name.keystore" \
     -t "$WORK/tmp-$name" \
@@ -115,7 +133,8 @@ patch() { # $1 = tên file ra, các tham số còn lại = tuỳ chọn thêm ch
 # Bản không microG: GmsCore support vẫn đổi tên gói (để cài song song YouTube gốc, không cần root)
 # nhưng trỏ mọi lời gọi Google Play Services về chính com.google.android.gms của máy.
 FAILED=0
-patch youtube-revanced-khong-microg -e "GmsCore support" -OgmsCoreVendorGroupId=com.google || FAILED=1
+# (CLI v6: tuỳ chọn -O phải đứng TRƯỚC -e của bản vá nó áp dụng.)
+patch youtube-revanced-khong-microg -OgmsCoreVendorGroupId=com.google -e "GmsCore support" || FAILED=1
 # Bản chuẩn (cần microG) – để đối chứng.
 patch youtube-revanced-chuan || FAILED=1
 
