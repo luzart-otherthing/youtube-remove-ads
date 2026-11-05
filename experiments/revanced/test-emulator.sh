@@ -97,8 +97,31 @@ run_case() { # $1 = tên, $2 = file apk
   audio=$(grep -cE "state:started" "$dir/audio.txt" || true)
 
   # Những dòng log liên quan tới Google Play Services / ReVanced / phát video.
-  grep -iE "revanced|gmscore|GooglePlayServices|GoogleApiManager|SecurityException|GoogleCertificates|not.*Google.*sign|DroidGuard|PoToken|Unknown calling package|SpoofVideoStreams|Playback error|ExoPlaybackException" \
+  grep -iE "revanced|gmscore|GooglePlayServices|GoogleApiManager|GoogleCertificatesRslt|PackageVerificationRslt|not.*Google.*sign|finishing the App|not playable|FATAL EXCEPTION|AndroidRuntime: Process|DroidGuard|PoToken|Unknown calling package|SpoofVideoStreams|Playback error|ExoPlaybackException" \
     "$dir/logcat.txt" | grep -v "^--------- beginning" | head -120 > "$dir/log-quan-trong.txt" || true
+
+  # Không phát được → mở lại lần 2 (như người dùng bấm lại) để chắc đây không phải lỗi chỉ ở lần đầu.
+  local second=""
+  if [[ "$media" != *PLAYING* ]]; then
+    adb logcat -c || true
+    adb shell am start -W -a android.intent.action.VIEW \
+      -d "https://www.youtube.com/watch?v=$VIDEO" -p "$pkg" > "$dir/am-start-2.txt" 2>&1 || true
+    sleep 40
+    adb exec-out screencap -p > "$dir/3-mo-lai-sau-40-giay.png" || true
+    local ui3 pid2 top2 media2 crash2
+    ui3=$(ui_texts "$dir/ui-3.xml")
+    pid2=$(adb shell pidof "$pkg" | tr -d '\r')
+    top2=$(adb shell dumpsys activity activities | grep -m1 -E 'topResumedActivity|mResumedActivity' | tr -d '\r' | xargs)
+    adb shell dumpsys media_session > "$dir/media_session-2.txt" 2>&1 || true
+    media2=$(grep -A40 "package=$pkg" "$dir/media_session-2.txt" | grep -m1 -oE 'state=PlaybackState \{state=[A-Z_]*\(?[0-9]*\)?, position=[0-9]+' || true)
+    adb logcat -d > "$dir/logcat-2.txt" 2>&1 || true
+    crash2=$(grep -A6 "FATAL EXCEPTION" "$dir/logcat-2.txt" | grep -m2 -E "Process: $pkg|Exception" | tr '\n' ' ' || true)
+    grep -hE "finishing the App|GoogleCertificatesRslt|PackageVerificationRslt|not playable|GmsCore" "$dir/logcat-2.txt" \
+      | cut -c1-220 | awk '!seen[substr($0,32)]++' | head -12 > "$dir/log-mo-lai.txt" || true
+    second=$(printf '%s\n' \
+      "- **Mở lại lần 2** (sau 40 giây): còn chạy: $([ -n "$pid2" ] && echo "có" || echo "KHÔNG"); màn hình: \`$top2\`; phát: ${media2:-không có}; văng: ${crash2:-không}" \
+      "- Chữ trên màn hình khi mở lại: ${ui3:0:600}")
+  fi
 
   {
     echo "## $name"
@@ -112,6 +135,8 @@ run_case() { # $1 = tên, $2 = file apk
     echo "- Văng app: ${crash:-không}"
     echo "- Chữ trên màn hình lúc 25 giây: ${ui1:0:900}"
     echo "- Chữ trên màn hình lúc 60 giây: ${ui2:0:900}"
+    [ -n "$second" ] && echo "$second"
+    if [ -s "$dir/log-mo-lai.txt" ]; then echo; echo '```'; cat "$dir/log-mo-lai.txt"; echo '```'; fi
     echo
     echo "<details><summary>Log quan trọng (đầu)</summary>"
     echo
