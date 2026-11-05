@@ -1,0 +1,64 @@
+# Dự án Xcode được tạo từ file này bằng XcodeGen:
+#   brew install xcodegen && cd ios && xcodegen generate && open TubeSach.xcodeproj
+name: TubeSach
+options:
+  bundleIdPrefix: com.luzart
+  deploymentTarget:
+    iOS: "16.0"
+  developmentLanguage: vi
+packages:
+  TubeSachCore:
+    path: TubeSachCore
+settings:
+  base:
+    MARKETING_VERSION: "1.0.0"
+    CURRENT_PROJECT_VERSION: "1"
+    SWIFT_VERSION: "5.0"
+targets:
+  TubeSach:
+    type: application
+    platform: iOS
+    deploymentTarget: "16.0"
+    sources:
+      - path: TubeSach
+    dependencies:
+      - package: TubeSachCore
+    scheme: {}
+    info:
+      path: TubeSach/Info.plist
+      properties:
+        CFBundleDisplayName: Tube Sạch
+        CFBundleDevelopmentRegion: vi
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        LSRequiresIPhoneOS: true
+        ITSAppUsesNonExemptEncryption: false
+        UILaunchScreen:
+          UIColorName: AccentColor
+        UIApplicationSupportsIndirectInputEvents: true
+        # Phát tiếng khi tắt màn hình / chuyển app; hình trong hình.
+        UIBackgroundModes:
+          - audio
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        # Mở video bằng link tubesach://watch?v=MÃ_VIDEO
+        CFBundleURLTypes:
+          - CFBundleURLName: com.luzart.tubesach
+            CFBundleURLSchemes:
+              - tubesach
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.luzart.tubesach
+        PRODUCT_NAME: TubeSach
+        TARGETED_DEVICE_FAMILY: "1,2"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        CODE_SIGN_STYLE: Automatic
+        ENABLE_PREVIEWS: YES

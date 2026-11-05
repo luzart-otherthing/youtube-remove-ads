@@ -3,7 +3,14 @@ name: Build APK
 on:
   push:
     branches: [main]
+    # Thay đổi chỉ của bản iOS thì không build/phát hành lại APK.
+    paths-ignore:
+      - "ios/**"
+      - ".github/workflows/ios.yml"
   pull_request:
+    paths-ignore:
+      - "ios/**"
+      - ".github/workflows/ios.yml"
   workflow_dispatch:
 
 permissions:
