@@ -252,4 +252,44 @@ class ScreenshotTest {
         settle()
         captureScreenRoboImage("build/outputs/roborazzi/16_canh_bao_dang_nhap.png", opts)
     }
+
+    private fun withVp9Device(broken: Boolean = false, block: () -> Unit) {
+        com.luzart.tubesach.player.VideoCodecSupport.override = { _, _, _ -> true } // máy có VP9 phần cứng
+        app.store.setVp9Broken(broken)
+        try {
+            block()
+        } finally {
+            com.luzart.tubesach.player.VideoCodecSupport.resetForTest()
+            app.store.setVp9Broken(false)
+        }
+    }
+
+    private fun settingsVm() = AppViewModel(app).also {
+        it.previewHome(FeedState(loaded = true))
+        it.push(Screen.Settings)
+    }
+
+    @Test
+    fun vp9Setting() = withVp9Device { shot("17_cai_dat_vp9", content = app(settingsVm())) }
+
+    @Test
+    fun vp9SettingAfterAutoFallback() = withVp9Device(broken = true) { shot("18_cai_dat_vp9_da_tu_tat", content = app(settingsVm())) }
+
+    @Test
+    fun advancedQualityWith4k() = withVp9Device {
+        // Menu ⚙ → Chất lượng → Nâng cao: có 4K/2K kèm ghi chú.
+        val now = nowPlaying().copy(availableHeights = listOf(2160, 1440, 1080, 720, 480, 360, 240, 144))
+        app.store.updateSettings { it.copy(theme = ThemeMode.LIGHT) }
+        compose.setContent {
+            TubeTheme(ThemeMode.LIGHT, 1f) {
+                com.luzart.tubesach.ui.player.PlayerSettingsSheet(now, app.store, 1080, onDismiss = {}, onOpenAppSettings = {})
+            }
+        }
+        settle()
+        compose.onNodeWithText("Chất lượng").performClick()
+        settle()
+        compose.onNodeWithText("Nâng cao").performClick()
+        settle()
+        captureScreenRoboImage("build/outputs/roborazzi/19_chat_luong_nang_cao_4k.png", opts)
+    }
 }

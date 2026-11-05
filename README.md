@@ -25,7 +25,7 @@
   - vuốt xuống để thu nhỏ, vuốt lên để toàn màn hình.
 - Toàn màn hình ngang có tiêu đề, hàng nút Thích / Không thích / Bình luận / Lưu / Chia sẻ.
 - Bảng ⚙ giống YouTube:
-  - **Chất lượng**: Tự động (khuyên dùng) / Chất lượng hình ảnh cao hơn / Tiết kiệm dữ liệu / Nâng cao (1080p…144p);
+  - **Chất lượng**: Tự động (khuyên dùng) / Chất lượng hình ảnh cao hơn / Tiết kiệm dữ liệu / Nâng cao (144p…1080p; thêm **2K, 4K** nếu video có và máy giải mã nổi);
   - **Phụ đề**, có *Tự động dịch: Tiếng Việt*;
   - **Tốc độ phát** 0,25–2x;
   - **Hẹn giờ ngủ**;
@@ -40,6 +40,11 @@
 - Hình trong hình tự bật khi bấm nút Home.
 - **SponsorBlock**: tự bỏ qua đoạn tài trợ, chọn được từng loại (tài trợ, tự quảng cáo, nhắc đăng ký, mở đầu, kết thúc…). Đoạn được tô màu trên thanh tua, có thông báo "Đã bỏ qua… · Hoàn tác". **Bật/tắt bất cứ lúc nào** bằng nút $ trên trình phát, trong bảng ⚙ hoặc trong Cài đặt.
 - **Return YouTube Dislike**: hiện lại số lượt không thích.
+- **Tiết kiệm dữ liệu (VP9)**: dùng định dạng VP9 như app YouTube khi máy có bộ giải mã phần cứng; cùng độ nét 1080p mà tốn khoảng 1/3 dữ liệu so với H.264.
+  - Máy không hỗ trợ: dùng H.264 như cũ.
+  - Máy phát VP9 báo lỗi hoặc giật liên tục: app **tự chuyển về H.264 ngay tại chỗ đang xem** và nhớ lại cho lần sau.
+  - Tắt/bật trong *Cài đặt*.
+  - 2K/4K chỉ dùng khi tự chọn trong *Chất lượng → Nâng cao*; các chế độ khác tối đa 1080p.
 - Ẩn Shorts; cỡ chữ lớn cho người lớn tuổi.
 - Mở link YouTube được chia sẻ từ Zalo/Facebook; tự kiểm tra bản cập nhật.
 
@@ -69,7 +74,7 @@ Mặc định app **không cần và không đề nghị đăng nhập**. Ở cu
 
 **Kết hợp trong Tube Sạch:**
 - **Gọi thẳng InnerTube** như SmartTube cho trang chủ, tìm kiếm, trang xem, kênh và Shorts. Cách này giữ nguyên chữ tiếng Việt của YouTube ("1,2 Tr lượt xem", "4 ngày trước"), có ảnh đại diện kênh và chip.
-- **Lấy link phát bằng máy khách visionOS**: chỉ 1 yêu cầu, khoảng 0,2–0,5 giây; NewPipe cần 1,4–3 giây. App tự dựng manifest DASH nhiều độ phân giải để ExoPlayer tự đổi chất lượng như YouTube.
+- **Lấy link phát bằng máy khách visionOS**: chỉ 1 yêu cầu, khoảng 0,2–0,5 giây; NewPipe cần 1,4–3 giây. App tự dựng manifest DASH nhiều độ phân giải (H.264 tới 1080p, VP9 tới 4K nếu máy hỗ trợ) để ExoPlayer tự đổi chất lượng như YouTube.
 - **NewPipeExtractor làm dự phòng** khi YouTube đổi cách hoạt động, và để đọc bình luận, gợi ý tìm kiếm.
 - **Tính năng của ReVanced/RVX**: SponsorBlock, Return YouTube Dislike, ẩn Shorts, tự chọn chất lượng, hình trong hình, phát nền. Ở đây chúng được làm lại trên app riêng, không sửa APK của Google.
 
@@ -109,7 +114,8 @@ app/src/main/java/com/luzart/tubesach/
 │                   DirectStreams.kt (link phát + DASH + phụ đề), WatchTracker.kt (báo lượt xem ẩn danh)
 ├── sponsor/        SponsorBlock + Return YouTube Dislike
 ├── data/           YouTubeRepository (gộp nguồn + dự phòng NewPipe), LocalStore (lịch sử, kênh đăng ký, cài đặt)
-├── player/         PlaybackController (chất lượng, tốc độ, lặp, phụ đề, SponsorBlock, hẹn giờ), PlaybackService (phát nền)
+├── player/         PlaybackController (chất lượng, tốc độ, lặp, phụ đề, SponsorBlock, hẹn giờ, tự phát), PlaybackService (phát nền),
+│                   VideoCodecSupport (máy có giải mã VP9 phần cứng không)
 └── ui/             TubeApp (khung chính), screens/ (Trang chủ, Shorts, Kênh đăng ký, Bạn, Tìm kiếm, Kênh, Xem, Cài đặt),
                     player/ (lớp điều khiển, thanh tua, bảng ⚙, trình phát mini), theme/ (màu sáng/tối)
 ```

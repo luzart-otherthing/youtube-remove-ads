@@ -254,6 +254,7 @@ fun SettingsScreen(vm: AppViewModel, pipSupported: Boolean) {
                 ToggleRow("Hình trong hình", "Tự thu nhỏ video thành cửa sổ nổi khi rời ứng dụng", s.autoPip) { v -> vm.store.updateSettings { it.copy(autoPip = v) } }
             }
             ValueRow("Chất lượng video ưu tiên", s.quality.label) { dialog = "quality" }
+            Vp9Row(vm)
             ToggleRow("Ẩn Shorts", "Ẩn kệ Shorts ở trang chủ và kết quả tìm kiếm", s.hideShorts) { v -> vm.store.updateSettings { it.copy(hideShorts = v) } }
             YtDivider()
 
@@ -455,6 +456,24 @@ private fun WarnDialog(title: String, text: String, confirm: String, onDismiss: 
         confirmButton = { TextButton(onClick = { onConfirm(); onDismiss() }) { Text(confirm) } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("HUỶ") } },
     )
+}
+
+/**
+ * "Tiết kiệm dữ liệu (VP9)": mặc định bật. Máy không giải mã phần cứng được thì không hiện công tắc.
+ * Nếu app đã tự tắt vì máy phát VP9 không ổn, bật lại sẽ cho thử lại.
+ */
+@Composable
+private fun Vp9Row(vm: AppViewModel) {
+    val s by vm.store.settings.collectAsState()
+    val broken by vm.store.vp9Broken.collectAsState()
+    val available = remember { PlaybackController.vp9Available() }
+    if (!available) return
+    ToggleRow(
+        "Tiết kiệm dữ liệu (VP9)",
+        if (broken && s.preferVp9) "Đã tự tắt vì máy phát định dạng này không mượt. Bật lại để thử lại."
+        else "Định dạng YouTube dùng: cùng độ nét mà tốn ít 4G hơn, có thêm 2K/4K. Tự quay về định dạng cũ nếu máy phát không mượt.",
+        s.preferVp9 && !broken,
+    ) { on -> PlaybackController.setVp9Enabled(on) }
 }
 
 /** Tài khoản Google – để cuối trang cài đặt, mặc định không đăng nhập. */

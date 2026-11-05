@@ -32,7 +32,19 @@ data class StreamFormat(
     val quality: Int get() = if (width > 0 && height > 0) minOf(width, height) else height
 
     val isPortrait: Boolean get() = width in 1 until height
+
+    /** Luồng H.264 (MP4) – máy nào cũng giải mã phần cứng được; YouTube chỉ có tới 1080p. */
+    val isAvc: Boolean get() = isVideo && mimeType == "video/mp4" && codecs.startsWith("avc1")
+
+    /**
+     * Luồng VP9 thường (8-bit, WebM) – có tới 4K, tốn ít dữ liệu hơn H.264.
+     * Bỏ VP9 HDR (vp09.02, 10-bit) vì nhiều máy không giải mã được.
+     */
+    val isVp9: Boolean get() = isVideo && mimeType == "video/webm" && (codecs == "vp9" || codecs.startsWith("vp09.00"))
 }
+
+/** Máy có phát được luồng VP9 này không (null = không dùng VP9). */
+typealias Vp9Policy = (StreamFormat) -> Boolean
 
 /** Một phụ đề có sẵn của video. */
 data class CaptionTrack(
@@ -66,10 +78,30 @@ data class PlayerData(
     val expiresAtMs: Long,
     val captions: List<CaptionTrack> = emptyList(),
 ) {
-    /** Các độ phân giải có thể chọn trong menu "Chất lượng". */
-    val availableHeights: List<Int>
-        get() = formats.filter { it.isVideo && it.mimeType == "video/mp4" && it.codecs.startsWith("avc1") && it.quality in 1..1080 }
-            .map { it.quality }.distinct().sortedDescending()
+    /** Các độ phân giải có thể chọn trong menu "Chất lượng" (chỉ H.264, tối đa 1080p). */
+    val availableHeights: List<Int> get() = availableHeights(null)
+
+    /**
+     * Các độ phân giải có thể chọn: H.264 tới 1080p, cộng thêm VP9 (tới 2160p = 4K) mà [vp9] cho phép
+     * – tức máy giải mã phần cứng được đúng kích thước đó.
+     */
+    fun availableHeights(vp9: Vp9Policy?): List<Int> =
+        (avcFormats(1080) + vp9Formats(vp9)).map { it.quality }.distinct().sortedDescending()
+
+    private fun avcFormats(maxQuality: Int) = formats
+        .filter { it.isAvc && it.quality in 1..maxQuality && it.indexEnd > 0 && it.initEnd > 0 }
+        .distinctBy { it.quality to it.fps }
+
+    private fun vp9Formats(vp9: Vp9Policy?): List<StreamFormat> {
+        vp9 ?: return emptyList()
+        return formats
+            .filter { it.isVp9 && it.quality in 1..MAX_VP9_QUALITY && it.indexEnd > 0 && it.initEnd > 0 }
+            .distinctBy { it.quality to it.fps }
+            .filter { runCatching { vp9(it) }.getOrDefault(false) }
+    }
+
+    /** Có luồng VP9 nào máy phát được không. */
+    fun hasVp9(vp9: Vp9Policy?): Boolean = vp9Formats(vp9).isNotEmpty()
 
     /** Video dọc (Shorts, video quay dọc). */
     val isPortrait: Boolean get() = formats.firstOrNull { it.isVideo && it.width > 0 }?.isPortrait == true
@@ -77,12 +109,13 @@ data class PlayerData(
     /**
      * Dựng manifest DASH gồm nhiều độ phân giải H.264 (≤ [maxHeight]) và một luồng tiếng AAC.
      * ExoPlayer sẽ tự chọn chất lượng theo tốc độ mạng – giống chế độ "Tự động" của YouTube.
+     *
+     * [vp9] khác null: thêm một nhóm luồng VP9 (chỉ những độ phân giải máy giải mã phần cứng được).
+     * Trình phát chọn nhóm VP9 nếu có (tiết kiệm dữ liệu), nhóm H.264 vẫn còn để quay về khi cần.
      */
-    fun dashManifest(maxHeight: Int = 1080): String? {
-        val video = formats
-            .filter { it.isVideo && it.mimeType == "video/mp4" && it.codecs.startsWith("avc1") && it.quality in 1..maxHeight }
-            .filter { it.indexEnd > 0 && it.initEnd > 0 }
-            .distinctBy { it.quality to it.fps }
+    fun dashManifest(maxHeight: Int = 1080, vp9: Vp9Policy? = null): String? {
+        val video = avcFormats(maxHeight)
+        val vp9Video = vp9Formats(vp9)
         val audioAll = formats.filter { it.isAudio && it.mimeType == "audio/mp4" && it.indexEnd > 0 && it.initEnd > 0 }
         val audio = audioAll.filter { it.audioIsDefault || it.audioTrackId == null }.ifEmpty { audioAll }
             .sortedByDescending { it.bitrate }
@@ -97,6 +130,11 @@ data class PlayerData(
         sb.append("<AdaptationSet id=\"0\" contentType=\"video\" mimeType=\"video/mp4\" subsegmentAlignment=\"true\" startWithSAP=\"1\">")
         video.forEach { sb.representation(it) }
         sb.append("</AdaptationSet>")
+        if (vp9Video.isNotEmpty()) {
+            sb.append("<AdaptationSet id=\"2\" contentType=\"video\" mimeType=\"video/webm\" subsegmentAlignment=\"true\" startWithSAP=\"1\">")
+            vp9Video.forEach { sb.representation(it) }
+            sb.append("</AdaptationSet>")
+        }
         sb.append("<AdaptationSet id=\"1\" contentType=\"audio\" mimeType=\"audio/mp4\" subsegmentAlignment=\"true\" startWithSAP=\"1\">")
         audio.forEach { sb.representation(it) }
         sb.append("</AdaptationSet>")
@@ -122,6 +160,9 @@ data class PlayerData(
     }
 
     companion object {
+        /** Tối đa 4K (2160p). 8K thường chỉ có AV1 – rất ít điện thoại giải mã nổi. */
+        const val MAX_VP9_QUALITY = 2160
+
         fun parse(json: JSONObject, videoId: String): PlayerData {
             val status = json.s("playabilityStatus", "status")
             if (status != "OK") {
