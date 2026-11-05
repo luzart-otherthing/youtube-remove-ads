@@ -82,6 +82,28 @@ fun SettingsScreen(vm: TvViewModel) {
                 ) {}
             }
             item {
+                val context = androidx.compose.ui.platform.LocalContext.current
+                val supported = remember { com.luzart.tubesach.player.CodecSupport.tvPolicy(context, allowHdr = true).hdr }
+                SettingRow(
+                    "HDR (màu sắc và độ sáng rực rỡ hơn)",
+                    when {
+                        supported.isEmpty() -> "TV không hỗ trợ"
+                        s.hdr -> "Bật · " + supported.sortedBy { it.ordinal }.joinToString(", ") { if (it.name == "HDR10") "HDR10" else "HLG" }
+                        else -> "Tắt"
+                    },
+                    if (supported.isEmpty()) {
+                        "Cần màn hình HDR và chip giải mã VP9 10-bit. Bật \"Định dạng HDR\" trong cài đặt hình ảnh của TV nếu có."
+                    } else {
+                        "Chỉ với video quay HDR. Áp dụng cho video mở sau."
+                    },
+                ) {
+                    if (supported.isNotEmpty()) {
+                        vm.store.updateSettings { it.copy(hdr = !it.hdr) }
+                        com.luzart.tubesach.tv.TvApp.of(context).applyStreamPolicy()
+                    }
+                }
+            }
+            item {
                 SettingRow("Tự động phát video tiếp theo", onOff(s.autoplay)) {
                     vm.store.updateSettings { it.copy(autoplay = !it.autoplay) }
                 }

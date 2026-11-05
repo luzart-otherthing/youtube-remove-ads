@@ -1,8 +1,12 @@
 package com.luzart.tubesach.player
 
+import android.content.Context
+import android.hardware.display.DisplayManager
 import android.media.MediaCodecInfo
 import android.media.MediaCodecList
 import android.os.Build
+import android.view.Display
+import com.luzart.tubesach.innertube.HdrType
 import com.luzart.tubesach.innertube.StreamPolicy
 import com.luzart.tubesach.innertube.VideoCodec
 
@@ -35,8 +39,62 @@ object CodecSupport {
         }.getOrDefault(0)
     }
 
-    /** Chính sách cho TV: VP9 tới mức cao nhất chip làm được; không có thì H.264 1080p. */
-    fun tvPolicy(): StreamPolicy = policyFor(maxHardwareVp9Height)
+    /**
+     * Chính sách cho TV: VP9 tới mức cao nhất chip làm được (có HDR nếu màn hình + chip hỗ trợ
+     * và [allowHdr]); không có VP9 phần cứng thì H.264 1080p.
+     */
+    fun tvPolicy(context: Context? = null, allowHdr: Boolean = true): StreamPolicy {
+        val base = policyFor(maxHardwareVp9Height)
+        if (base.codec != VideoCodec.VP9 || context == null || !allowHdr) return base
+        return base.copy(hdr = hdrTypes(context))
+    }
+
+    /**
+     * Loại HDR phát được = màn hình hiển thị được **và** chip giải mã VP9 profile 2 (10‑bit) bằng phần cứng.
+     * Thiếu một trong hai mà vẫn phát HDR thì màu nhạt / sai hoặc không phát được → không bật.
+     */
+    fun hdrTypes(context: Context): Set<HdrType> = runCatching {
+        val display = displayHdrTypes(context)
+        val decoder = decoderHdrTypes
+        display.intersect(decoder)
+    }.getOrDefault(emptySet())
+
+    /** Loại HDR màn hình hiển thị được (đọc từ hệ thống; TV đặt "Định dạng HDR: Tự động"). */
+    @Suppress("DEPRECATION")
+    fun displayHdrTypes(context: Context): Set<HdrType> {
+        if (Build.VERSION.SDK_INT < 24) return emptySet()
+        val dm = context.getSystemService(Context.DISPLAY_SERVICE) as? DisplayManager ?: return emptySet()
+        val display = dm.getDisplay(Display.DEFAULT_DISPLAY) ?: return emptySet()
+        val types = buildSet {
+            if (Build.VERSION.SDK_INT >= 34) display.mode.supportedHdrTypes.forEach { add(it) }
+            display.hdrCapabilities?.supportedHdrTypes?.forEach { add(it) }
+        }
+        return hdrFromDisplayTypes(types)
+    }
+
+    /** HDR10+ cũng phát được HDR10 thường. */
+    fun hdrFromDisplayTypes(types: Collection<Int>): Set<HdrType> = buildSet {
+        if (Display.HdrCapabilities.HDR_TYPE_HDR10 in types || Display.HdrCapabilities.HDR_TYPE_HDR10_PLUS in types) add(HdrType.HDR10)
+        if (Display.HdrCapabilities.HDR_TYPE_HLG in types) add(HdrType.HLG)
+    }
+
+    /** Loại HDR chip giải mã VP9 phần cứng hỗ trợ (profile 2 HDR / 10-bit). */
+    val decoderHdrTypes: Set<HdrType> by lazy {
+        runCatching {
+            val profiles = MediaCodecList(MediaCodecList.REGULAR_CODECS).codecInfos
+                .filter { !it.isEncoder && it.supportedTypes.any { t -> t.equals(VP9, ignoreCase = true) } && isHardware(it) }
+                .flatMap { d -> runCatching { d.getCapabilitiesForType(VP9).profileLevels.map { it.profile } }.getOrDefault(emptyList()) }
+            hdrFromDecoderProfiles(profiles)
+        }.getOrDefault(emptySet())
+    }
+
+    fun hdrFromDecoderProfiles(profiles: Collection<Int>): Set<HdrType> = buildSet {
+        val hdr10 = MediaCodecInfo.CodecProfileLevel.VP9Profile2HDR in profiles ||
+            MediaCodecInfo.CodecProfileLevel.VP9Profile2HDR10Plus in profiles
+        val tenBit = hdr10 || MediaCodecInfo.CodecProfileLevel.VP9Profile2 in profiles
+        if (hdr10) add(HdrType.HDR10)
+        if (tenBit) add(HdrType.HLG)
+    }
 
     fun policyFor(vp9Height: Int): StreamPolicy =
         if (vp9Height >= 1080) StreamPolicy(VideoCodec.VP9, vp9Height) else StreamPolicy.PHONE

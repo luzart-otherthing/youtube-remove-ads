@@ -330,13 +330,17 @@ class RemoteNavigationTest {
         compose.press(KeyEvent.KEYCODE_DPAD_DOWN)
         assertEquals("setting:Độ nét tối đa TV phát được", compose.focusedTag())
         compose.press(KeyEvent.KEYCODE_DPAD_DOWN)
+        assertEquals("setting:HDR (màu sắc và độ sáng rực rỡ hơn)", compose.focusedTag())
+        compose.press(KeyEvent.KEYCODE_DPAD_CENTER) // TV không hỗ trợ HDR: bấm không đổi gì
+        assertTrue(testApp.store.settings.value.hdr)
+        compose.press(KeyEvent.KEYCODE_DPAD_DOWN)
         assertEquals("setting:Tự động phát video tiếp theo", compose.focusedTag())
         assertTrue(testApp.store.settings.value.autoplay)
         compose.press(KeyEvent.KEYCODE_DPAD_CENTER)
         assertFalse(testApp.store.settings.value.autoplay)
 
         // Bảng chọn trong Cài đặt: Quay lại đóng bảng, không thoát trang.
-        compose.press(KeyEvent.KEYCODE_DPAD_UP, 2)
+        compose.press(KeyEvent.KEYCODE_DPAD_UP, 3)
         compose.press(KeyEvent.KEYCODE_DPAD_CENTER)
         compose.onNodeWithTag("panel:Chất lượng video").assertIsDisplayed()
         back()

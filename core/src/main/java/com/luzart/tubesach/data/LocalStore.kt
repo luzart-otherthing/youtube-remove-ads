@@ -39,6 +39,8 @@ data class Settings(
     /** Ngôn ngữ phụ đề tự bật (rỗng = tắt). */
     val captionLanguage: String = "",
     val doubleTapSeekSec: Int = 10,
+    /** Phát HDR khi cả video lẫn màn hình + chip giải mã đều hỗ trợ (chỉ dùng trên TV). */
+    val hdr: Boolean = true,
 )
 
 /** Lưu dữ liệu trên máy (không gửi đi đâu): cài đặt, lịch sử, kênh đăng ký, video đã lưu. */
@@ -91,6 +93,7 @@ class LocalStore(context: Context) {
             .putBoolean("personalize", s.personalize)
             .putString("captionLanguage", s.captionLanguage)
             .putInt("doubleTapSeekSec", s.doubleTapSeekSec)
+            .putBoolean("hdr", s.hdr)
             .apply()
     }
 
@@ -111,6 +114,7 @@ class LocalStore(context: Context) {
             personalize = prefs.getBoolean("personalize", d.personalize),
             captionLanguage = prefs.getString("captionLanguage", d.captionLanguage).orEmpty(),
             doubleTapSeekSec = prefs.getInt("doubleTapSeekSec", d.doubleTapSeekSec),
+            hdr = prefs.getBoolean("hdr", d.hdr),
         )
     }
 

@@ -16,7 +16,8 @@ import org.robolectric.annotation.Config
 @Config(sdk = [35])
 class StreamPolicyTest {
 
-    private fun fmt(itag: Int, mime: String, w: Int, h: Int, fps: Int = 30, br: Int = h * 5000) = JSONObject()
+    private fun fmt(itag: Int, mime: String, w: Int, h: Int, fps: Int = 30, br: Int = h * 5000, transfer: String? = null) = JSONObject()
+        .apply { if (transfer != null) put("colorInfo", JSONObject().put("transferCharacteristics", "COLOR_TRANSFER_CHARACTERISTICS_$transfer")) }
         .put("itag", itag).put("url", "https://rr.googlevideo.com/videoplayback?itag=$itag").put("mimeType", mime)
         .put("bitrate", br).put("width", w).put("height", h).put("fps", fps)
         .put("initRange", JSONObject().put("start", "0").put("end", "200"))
@@ -26,7 +27,9 @@ class StreamPolicyTest {
     private fun video4k(): PlayerData {
         val formats = JSONArray()
             .put(fmt(315, "video/webm; codecs=\"vp9\"", 3840, 2160, 60))
-            .put(fmt(337, "video/webm; codecs=\"vp9.2\"", 3840, 2160, 60)) // HDR – bỏ qua
+            .put(fmt(337, "video/webm; codecs=\"vp9.2\"", 3840, 2160, 60, transfer = "SMPTEST2084"))
+            .put(fmt(336, "video/webm; codecs=\"vp9.2\"", 2560, 1440, 60, transfer = "SMPTEST2084"))
+            .put(fmt(335, "video/webm; codecs=\"vp9.2\"", 1920, 1080, 60, transfer = "SMPTEST2084"))
             .put(fmt(308, "video/webm; codecs=\"vp9\"", 2560, 1440, 60))
             .put(fmt(299, "video/mp4; codecs=\"avc1.64002A\"", 1920, 1080, 60))
             .put(fmt(303, "video/webm; codecs=\"vp9\"", 1920, 1080, 60))
@@ -58,7 +61,7 @@ class StreamPolicyTest {
         assertTrue(mpd.contains("mimeType=\"video/webm\""))
         assertTrue(mpd.contains("height=\"2160\""))
         assertTrue(mpd.contains("frameRate=\"60\""))
-        assertFalse("Không dùng HDR (vp9.2)", mpd.contains("vp9.2"))
+        assertFalse("TV không hỗ trợ HDR → không dùng vp9.2", mpd.contains("vp9.2"))
         assertFalse("Một loại mã hoá duy nhất cho hình", mpd.contains("avc1"))
         assertTrue("Vẫn có tiếng AAC", mpd.contains("mp4a.40.2"))
     }
@@ -90,5 +93,34 @@ class StreamPolicyTest {
         assertEquals("8K", CodecSupport.label(4320))
         // Robolectric không có chip giải mã phần cứng → an toàn: H.264 1080p.
         assertEquals(StreamPolicy.PHONE, CodecSupport.tvPolicy())
+    }
+
+    @Test
+    fun hdrTvGetsHdr10Stream() {
+        val d = video4k()
+        val policy = StreamPolicy(VideoCodec.VP9, 2160, hdr = setOf(HdrType.HDR10, HdrType.HLG))
+        val mpd = d.dashManifest(policy)!!
+        assertTrue(mpd.contains("codecs=\"vp9.2\""))
+        assertFalse("Không trộn HDR với hình thường", mpd.contains("codecs=\"vp9\""))
+        assertEquals(listOf(2160, 1440, 1080), d.availableHeights(policy))
+        assertEquals(HdrType.HDR10, d.hdrType(policy))
+        // TV chỉ hỗ trợ HLG mà video là HDR10 → phát hình thường.
+        assertEquals(null, d.hdrType(StreamPolicy(VideoCodec.VP9, 2160, hdr = setOf(HdrType.HLG))))
+        // Tắt HDR trong Cài đặt → hình thường.
+        assertFalse(d.dashManifest(StreamPolicy(VideoCodec.VP9, 2160))!!.contains("vp9.2"))
+    }
+
+    @Test
+    fun hdrNeedsBothDisplayAndDecoder() {
+        val d = android.view.Display.HdrCapabilities.HDR_TYPE_HDR10
+        assertEquals(setOf(HdrType.HDR10), CodecSupport.hdrFromDisplayTypes(listOf(d)))
+        assertEquals(setOf(HdrType.HDR10, HdrType.HLG), CodecSupport.hdrFromDisplayTypes(listOf(d, android.view.Display.HdrCapabilities.HDR_TYPE_HLG)))
+        assertEquals(emptySet<HdrType>(), CodecSupport.hdrFromDisplayTypes(emptyList()))
+        val p = android.media.MediaCodecInfo.CodecProfileLevel::class.java
+        assertEquals(setOf(HdrType.HDR10, HdrType.HLG), CodecSupport.hdrFromDecoderProfiles(listOf(p.getField("VP9Profile2HDR").getInt(null))))
+        assertEquals(setOf(HdrType.HLG), CodecSupport.hdrFromDecoderProfiles(listOf(p.getField("VP9Profile2").getInt(null))))
+        assertEquals(emptySet<HdrType>(), CodecSupport.hdrFromDecoderProfiles(listOf(p.getField("VP9Profile0").getInt(null))))
+        // Robolectric: không có màn hình HDR / chip → không bật HDR.
+        assertTrue(CodecSupport.hdrTypes(org.robolectric.RuntimeEnvironment.getApplication()).isEmpty())
     }
 }

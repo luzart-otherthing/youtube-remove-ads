@@ -114,6 +114,22 @@ class OnlinePipelineTest {
         assertTrue(2160 in heights && 1440 in heights)
     }
 
+    /** Video 4K HDR: ExoPlayer đọc được luồng VP9.2 HDR10 2160p (cho TV có màn hình + chip HDR). */
+    @Test
+    fun vp9HdrForTv() {
+        val data = runBlocking { YouTubeRepository.player("LXb3EKWsInQ") }
+        val policy = com.luzart.tubesach.innertube.StreamPolicy(
+            com.luzart.tubesach.innertube.VideoCodec.VP9, 2160, setOf(com.luzart.tubesach.innertube.HdrType.HDR10),
+        )
+        println("HDR: ${data.hdrType(policy)} ${data.availableHeights(policy)}")
+        assertEquals(com.luzart.tubesach.innertube.HdrType.HDR10, data.hdrType(policy))
+        val tracks = loadTracks(StreamSourceFactory(app).buildDirect(data, MediaMetadata.Builder().build(), null, policy))
+        val video = tracks.groups.first { it.type == C.TRACK_TYPE_VIDEO }
+        val heights = (0 until video.length).map { video.getTrackFormat(it).height }
+        println("ExoPlayer HDR: ${video.getTrackFormat(0).codecs} $heights")
+        assertTrue(2160 in heights)
+    }
+
     @Test
     fun newPipeFallbackPath() {
         val info = runBlocking { YouTubeRepository.streamInfo("https://www.youtube.com/watch?v=dQw4w9WgXcQ") }

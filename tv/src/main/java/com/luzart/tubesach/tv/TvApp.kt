@@ -40,9 +40,16 @@ class TvApp : Application(), SingletonImageLoader.Factory {
         }
         // Trên TV: rời app là dừng phát (giống YouTube trên TV), không chạy dịch vụ nền.
         PlaybackController.init(this, store, http, useBackgroundService = false)
-        // Chất lượng cao nhất TV làm được: VP9 tới 2K / 4K / 8K nếu chip giải mã bằng phần cứng hỗ trợ.
-        PlaybackController.streamPolicy = CodecSupport.tvPolicy()
         PlaybackController.ignoreDisplaySize = true
+        applyStreamPolicy()
+    }
+
+    /**
+     * Chất lượng cao nhất TV làm được: VP9 tới 2K / 4K / 8K nếu chip giải mã bằng phần cứng hỗ trợ,
+     * kèm HDR10 / HLG nếu màn hình + chip hỗ trợ và người dùng bật HDR. Áp dụng cho video mở sau.
+     */
+    fun applyStreamPolicy() {
+        PlaybackController.streamPolicy = CodecSupport.tvPolicy(this, allowHdr = store.settings.value.hdr)
     }
 
     override fun newImageLoader(context: PlatformContext): ImageLoader =

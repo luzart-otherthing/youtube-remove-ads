@@ -469,6 +469,11 @@ object PlaybackController {
     /** Độ phân giải đang phát, ví dụ 720. */
     fun currentHeight(): Int? = _player?.videoFormat?.height?.takeIf { it > 0 }
 
+    /** Đang phát hình HDR (HDR10 hoặc HLG)? */
+    fun isPlayingHdr(): Boolean = _player?.videoFormat?.colorInfo?.colorTransfer.let {
+        it == C.COLOR_TRANSFER_ST2084 || it == C.COLOR_TRANSFER_HLG
+    }
+
     // ---------------------------------------------------------------- Phụ đề
 
     private fun autoSelectCaption(tracks: List<CaptionTrack>) {

@@ -20,19 +20,34 @@ data class StreamFormat(
     val audioChannels: Int,
     val audioTrackId: String?,
     val audioIsDefault: Boolean,
+    /** "COLOR_TRANSFER_CHARACTERISTICS_SMPTEST2084" (HDR10/PQ), "…_ARIB_STD_B67" (HLG), "…_BT709" (thường). */
+    val colorTransfer: String? = null,
 ) {
     val isVideo get() = mimeType.startsWith("video/")
+    val hdrType: HdrType? get() = when {
+        colorTransfer?.endsWith("SMPTEST2084") == true -> HdrType.HDR10
+        colorTransfer?.endsWith("ARIB_STD_B67") == true -> HdrType.HLG
+        else -> null
+    }
     val isAudio get() = mimeType.startsWith("audio/")
 }
 
 enum class VideoCodec { H264, VP9 }
+
+/** Loại HDR của YouTube: HDR10 (PQ) hoặc HLG. */
+enum class HdrType { HDR10, HLG }
 
 /**
  * Chọn loại luồng hình:
  * - điện thoại: H.264 ≤ 1080p (đỡ tốn pin và 4G);
  * - TV: VP9 tới độ phân giải cao nhất mà chip giải mã của TV làm được (2K, 4K, 8K…).
  */
-data class StreamPolicy(val codec: VideoCodec, val maxHeight: Int) {
+data class StreamPolicy(
+    val codec: VideoCodec,
+    val maxHeight: Int,
+    /** Loại HDR mà màn hình + chip giải mã cùng hỗ trợ (rỗng = chỉ phát hình thường). */
+    val hdr: Set<HdrType> = emptySet(),
+) {
     companion object {
         val PHONE = StreamPolicy(VideoCodec.H264, 1080)
     }
@@ -79,9 +94,20 @@ data class PlayerData(
     private fun h264(maxHeight: Int) = formats
         .filter { it.isVideo && it.mimeType == "video/mp4" && it.codecs.startsWith("avc1") && it.height in 1..minOf(maxHeight, 1080) }
 
-    /** VP9 thường (SDR). Bỏ "vp9.2" (HDR) vì nhiều TV giá rẻ hiển thị HDR sai màu. */
+    /** VP9 thường (SDR, profile 0). */
     private fun vp9(maxHeight: Int) = formats
         .filter { it.isVideo && it.mimeType == "video/webm" && (it.codecs == "vp9" || it.codecs.startsWith("vp09.00")) && it.height in 1..maxHeight }
+
+    /** VP9 HDR (profile 2, 10-bit) đúng loại HDR [type]. */
+    private fun vp9Hdr(maxHeight: Int, type: HdrType) = formats
+        .filter {
+            it.isVideo && it.mimeType == "video/webm" && (it.codecs == "vp9.2" || it.codecs.startsWith("vp09.02")) &&
+                it.height in 1..maxHeight && it.hdrType == type
+        }
+
+    /** Video này có bản HDR mà máy phát được không (theo [policy]). */
+    fun hdrType(policy: StreamPolicy): HdrType? =
+        videoFormats(policy).firstOrNull()?.hdrType
 
     /**
      * Luồng hình dùng để dựng manifest: VP9 (có 2K/4K/8K) nếu máy giải mã được và video có,
@@ -93,6 +119,12 @@ data class PlayerData(
             list.filter { it.indexEnd > 0 && it.initEnd > 0 }.sortedByDescending { it.bitrate }.distinctBy { it.height to it.fps }
         }
         if (policy.codec == VideoCodec.VP9) {
+            // HDR trước (nếu video có và TV hiển thị được), không trộn HDR với hình thường.
+            for (type in listOf(HdrType.HDR10, HdrType.HLG)) {
+                if (type !in policy.hdr) continue
+                val hdr = usable(vp9Hdr(policy.maxHeight, type))
+                if (hdr.isNotEmpty()) return hdr
+            }
             val v = usable(vp9(policy.maxHeight))
             // Chỉ đáng dùng VP9 khi nó cho độ nét cao hơn H.264 (2K trở lên) hoặc video không có H.264.
             val h = usable(h264(policy.maxHeight))
@@ -179,6 +211,7 @@ data class PlayerData(
                     audioChannels = f.optInt("audioChannels", 2),
                     audioTrackId = f.s("audioTrack", "id"),
                     audioIsDefault = f.optJSONObject("audioTrack")?.optBoolean("audioIsDefault") == true,
+                    colorTransfer = f.optJSONObject("colorInfo")?.optString("transferCharacteristics")?.ifBlank { null },
                 )
             }
             val expires = sd?.optString("expiresInSeconds")?.toLongOrNull() ?: 21_000L

@@ -456,6 +456,10 @@ private fun Controls(
                 video.uploadedText,
                 votes?.let { "👍 ${YouTubeRepository.formatCount(it.likes)}" },
                 votes?.takeIf { settings.returnDislike }?.let { "👎 ${YouTubeRepository.formatCount(it.dislikes)}" },
+                // Nhãn chất lượng đang phát, ví dụ "4K HDR".
+                PlaybackController.currentHeight()?.takeIf { it >= 1440 || PlaybackController.isPlayingHdr() }?.let { h ->
+                    com.luzart.tubesach.player.CodecSupport.label(h) + if (PlaybackController.isPlayingHdr()) " HDR" else ""
+                },
             ).joinToString("  •  ")
             Text(meta, style = MaterialTheme.typography.bodyLarge, color = Color(0xFFDDDDDD), maxLines = 1)
         }
@@ -522,7 +526,8 @@ private fun Controls(
                     { vm.panel = PlayerPanel.QUALITY },
                     onFocused = {
                         val h = PlaybackController.currentHeight()
-                        label = "Chất lượng: " + QualityOption.current(settings).label + (h?.let { " – đang phát " + QualityOption.heightLabel(it) } ?: "")
+                        label = "Chất lượng: " + QualityOption.current(settings).label +
+                            (h?.let { " – đang phát " + QualityOption.heightLabel(it) + if (PlaybackController.isPlayingHdr()) " HDR" else "" } ?: "")
                     },
                 )
                 TvIconButton(
