@@ -89,4 +89,50 @@ jobs:
             --target "${GITHUB_SHA}" \
             --title "Tube Sạch iOS ${VERSION_NAME}" \
             --latest=false \
-            --notes "Tải file **TubeSach-${VERSION_NAME}.ipa** rồi cài lên iPhone/iPad bằng Sideloadly, AltStore hoặc SideStore (xem README, mục *Cài lên iPhone / iPad*). Cài bản mới đè lên bản cũ không mất lịch sử."
+            --notes "Tải file **TubeSach-${VERSION_NAME}.ipa** rồi cài lên iPhone/iPad bằng Sideloadly, AltStore hoặc SideStore (xem README, mục *Bản iPhone / iPad*). Cài bản mới đè lên bản cũ không mất lịch sử."
+
+  # Chạy app trên iPhone/iPad giả lập và chụp màn hình (chỉ chạy khi commit có "[screenshots]" hoặc bấm tay).
+  screenshots:
+    name: Chụp màn hình (máy ảo)
+    needs: core-tests
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[screenshots]')
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Build for simulator
+        run: |
+          brew install xcodegen
+          cd ios && xcodegen generate && cd ..
+          set -o pipefail
+          xcodebuild \
+            -project ios/TubeSach.xcodeproj \
+            -scheme TubeSach \
+            -configuration Debug \
+            -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath ios/simbuild \
+            CODE_SIGNING_ALLOWED=NO \
+            build 2>&1 | grep -E "error:|BUILD (SUCCEEDED|FAILED)" || true
+          test -d ios/simbuild/Build/Products/Debug-iphonesimulator/TubeSach.app
+
+      - name: Run and take screenshots
+        run: ios/scripts/simulator-screenshots.sh ios/simbuild/Build/Products/Debug-iphonesimulator/TubeSach.app screenshots
+
+      - uses: actions/upload-artifact@v6
+        with:
+          name: TubeSach-iOS-screenshots
+          path: screenshots/*.png
+
+      # In ảnh thu nhỏ ra log (base64) để xem được mà không cần tải artifact.
+      - name: Print thumbnails
+        run: |
+          mkdir -p thumbs
+          for f in screenshots/*.png; do
+            n=$(basename "$f" .png)
+            sips -s format jpeg -s formatOptions 55 -Z 900 "$f" --out "thumbs/$n.jpg" >/dev/null
+            echo "=====BEGIN $n.jpg====="
+            base64 -i "thumbs/$n.jpg" | tr -d '\n' | fold -w 4000
+            echo
+            echo "=====END $n.jpg====="
+          done

@@ -68,7 +68,10 @@ struct RootView: View {
         .preferredColorScheme(store.settings.theme.colorScheme)
         .onOpenURL { url in _ = model.handle(url) }
         .onChange(of: store.settings) { _ in player.settingsChanged() }
-        .task { model.checkUpdate() }
+        .task {
+            model.handleLaunchArguments()
+            model.checkUpdate()
+        }
     }
 }
 

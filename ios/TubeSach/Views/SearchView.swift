@@ -80,9 +80,11 @@ struct SearchView: View {
         }
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {
-            if vm.query == nil && vm.text.isEmpty {
-                vm.text = initialText
+            guard vm.query == nil && vm.text.isEmpty else { return }
+            if initialText.isEmpty {
                 focused = true
+            } else {
+                submit(initialText)
             }
         }
     }

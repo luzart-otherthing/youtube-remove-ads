@@ -571,6 +571,22 @@ final class AppModel: ObservableObject {
         }
     }
 
+    // MARK: Mở sẵn một màn hình khi khởi động
+
+    /// Đọc tham số khởi động (ví dụ `-openVideo dQw4w9WgXcQ`), dùng để chụp màn hình tự động trên máy ảo.
+    func handleLaunchArguments() {
+        let d = UserDefaults.standard
+        switch d.string(forKey: "openTab") {
+        case "shorts": selectTab(.shorts)
+        case "subscriptions": selectTab(.subscriptions)
+        case "library": selectTab(.library)
+        default: break
+        }
+        if let q = d.string(forKey: "openSearch"), !q.isEmpty { openSearch(q) }
+        if let c = d.string(forKey: "openChannel"), !c.isEmpty { openChannel(c) }
+        if let v = d.string(forKey: "openVideo"), v.count == 11 { play(videoId: v) }
+    }
+
     // MARK: Quyền riêng tư
 
     func resetRecommendations() {
