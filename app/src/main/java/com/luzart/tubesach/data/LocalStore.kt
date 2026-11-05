@@ -39,8 +39,8 @@ data class Settings(
     /** Ngôn ngữ phụ đề tự bật (rỗng = tắt). */
     val captionLanguage: String = "",
     val doubleTapSeekSec: Int = 10,
-    /** Màn hình ô tô (chế độ bản đồ) vẫn hiện hình khi xe đang chạy – cho hành khách. Mặc định tắt. */
-    val carVideoWhileDriving: Boolean = false,
+    /** Màn hình ô tô (chế độ bản đồ) vẫn hiện hình khi xe đang chạy – cho hành khách (cả màn hình ghế sau). Mặc định bật. */
+    val carVideoWhileDriving: Boolean = true,
 )
 
 /** Lưu dữ liệu trên máy (không gửi đi đâu): cài đặt, lịch sử, kênh đăng ký, video đã lưu. */

@@ -92,9 +92,14 @@ Cắm điện thoại vào xe (hoặc kết nối Android Auto không dây). Tr�
 
 Không có quảng cáo ở mọi cách. Lịch sử, kênh đăng ký và danh sách Xem sau dùng chung với điện thoại.
 
-**Xe chạy thì sao?** Hình tự tắt, video vẫn phát tiếng. Điều khiển bằng nút trên vô lăng, giọng nói hoặc biểu tượng "Tube Sạch". Xe dừng hẳn khoảng 3 giây thì hình hiện lại. App biết xe đứng yên nhờ đọc tốc độ xe (hoặc GPS); nếu không đọc được tốc độ thì app coi như xe đang chạy và chỉ phát tiếng. Người lái đừng xem video khi đang lái.
+**Xe chạy thì sao?**
+- Máy Android 13 trở xuống: **vẫn hiện hình** (mặc định, xem tuỳ chọn bên dưới).
+- Máy Android 15+: Android Auto tự tắt hình, video vẫn phát tiếng, điều khiển bằng vô lăng, giọng nói hoặc biểu tượng "Tube Sạch".
+- Nếu tắt tuỳ chọn "cho hành khách xem": xe chạy thì chỉ phát tiếng, xe dừng khoảng 3 giây thì hình hiện lại. App biết xe đứng yên nhờ tốc độ xe hoặc GPS.
 
-**Cho hành khách xem khi xe chạy** (máy Android 13 trở xuống): trên điện thoại vào *Cài đặt → Ô tô (Android Auto)* → bật **Cho hành khách xem hình khi xe đang chạy**. Màn hình xe sẽ luôn hiện hình. Mặc định tắt và chỉ bật được trên điện thoại. Màn hình giữa nằm trong tầm mắt người lái: người lái tuyệt đối không nhìn video khi đang lái.
+Người lái đừng xem video khi đang lái.
+
+**Cho hành khách xem khi xe chạy** (máy Android 13 trở xuống, kể cả màn hình ghế sau nối với màn hình trước): **mặc định đã bật**, màn hình xe luôn hiện hình. Muốn chỉ hiện hình khi xe đỗ thì trên điện thoại vào *Cài đặt → Ô tô (Android Auto)* → tắt **Cho hành khách xem hình khi xe đang chạy**. Màn hình giữa nằm trong tầm mắt người lái: người lái tuyệt đối không nhìn video khi đang lái.
 
 ### Máy Android 13 trở xuống (ví dụ Android 11) – giống CarStream
 

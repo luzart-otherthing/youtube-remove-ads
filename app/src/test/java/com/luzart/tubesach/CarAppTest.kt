@@ -78,14 +78,15 @@ class CarAppTest {
     }
 
     @Test
-    fun passengerModeShowsVideoWhileDrivingOnlyWhenTurnedOn() {
-        assertFalse(app.store.settings.value.carVideoWhileDriving) // mặc định tắt
+    fun passengerModeShowsVideoWhileDriving() {
+        assertTrue(app.store.settings.value.carVideoWhileDriving) // mặc định bật
         DriveState.entries.forEach { s ->
             assertEquals(s.name, VideoSurfaceRenderer.Mode.Video, PlayerScreen.modeFor(s, whileDriving = true))
         }
         app.store.updateSettings { it.copy(carVideoWhileDriving = true) }
-        assertTrue(com.luzart.tubesach.data.LocalStore(app).settings.value.carVideoWhileDriving) // được lưu lại
         app.store.updateSettings { it.copy(carVideoWhileDriving = false) }
+        assertFalse(com.luzart.tubesach.data.LocalStore(app).settings.value.carVideoWhileDriving) // tắt được và được lưu lại
+        app.store.updateSettings { it.copy(carVideoWhileDriving = true) }
     }
 
     // ---------------------------------------------------------------- Màn hình trên xe
@@ -117,8 +118,13 @@ class CarAppTest {
         val t = controller.screen.onGetTemplate() as NavigationTemplate
         val titles = t.actionStrip!!.actions.mapNotNull { it.title?.toString() }
         assertTrue(titles.contains("Quay lại"))
-        assertTrue(titles.contains("Bật hình")) // xin quyền đọc tốc độ xe
+        assertFalse(titles.contains("Bật hình")) // mặc định luôn hiện hình: không cần quyền tốc độ xe
         assertEquals(2, t.mapActionStrip!!.actions.size) // lùi / tới 10 giây
+        // Tắt "cho hành khách xem" → cần đọc tốc độ xe → hiện nút xin quyền.
+        app.store.updateSettings { it.copy(carVideoWhileDriving = false) }
+        val t2 = controller.screen.onGetTemplate() as NavigationTemplate
+        assertTrue(t2.actionStrip!!.actions.mapNotNull { it.title?.toString() }.contains("Bật hình"))
+        app.store.updateSettings { it.copy(carVideoWhileDriving = true) }
         // Không có bề mặt / chưa đỗ → không giành hình của điện thoại.
         assertFalse(PlaybackController.carScreenActive.value)
         controller.moveToState(Lifecycle.State.DESTROYED)
