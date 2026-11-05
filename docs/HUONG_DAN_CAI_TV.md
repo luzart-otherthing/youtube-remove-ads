@@ -142,7 +142,16 @@ Xem TV của bạn được tới đâu ở *Cài đặt → Độ nét tối đ
 - **Cao nhất có thể**: luôn phát nét nhất.
 - Hoặc chọn hẳn một mức, ví dụ **2160p (4K)**.
 
-Khi xem, chọn nút **HQ** sẽ thấy dòng "đang phát 2160p (4K)". Video HDR được phát ở chế độ thường (SDR) để màu đúng trên mọi TV.
+Khi xem, chọn nút **HQ** sẽ thấy dòng "đang phát 2160p (4K)". Đang xem video 4K, thanh điều khiển cũng hiện chữ "4K" (thêm "HDR" nếu đang phát HDR) ở dòng thông tin phía trên.
+
+**Có HDR không?**
+Có, với video được quay HDR. App chỉ bật HDR khi cả hai điều kiện đều đúng:
+- màn hình TV hiển thị được HDR10 hoặc HLG;
+- chip giải mã VP9 10‑bit bằng phần cứng.
+
+Thiếu một trong hai thì app tự phát hình thường để màu không bị nhạt hoặc sai.
+
+Xem hoặc bật/tắt ở *Cài đặt → HDR*. Nếu dòng này báo "TV không hỗ trợ", vào cài đặt hình ảnh của TV, bật **Định dạng HDR** (*HDR format*: Tự động / Auto), rồi mở lại app.
 
 **Có cần đăng nhập không? Có đề xuất video không?**
 Không cần đăng nhập. Lần đầu mở app, trang chủ hiện *Thịnh hành tại Việt Nam*. Sau khi xem vài video, YouTube sẽ đề xuất theo những gì bạn đã xem (ẩn danh). Tắt được trong Cài đặt.
