@@ -15,6 +15,8 @@ import androidx.test.core.app.ApplicationProvider
 import com.luzart.tubesach.data.FeedEntry
 import com.luzart.tubesach.data.VideoItem
 import com.luzart.tubesach.data.YouTubeRepository
+import com.luzart.tubesach.innertube.InnerTube
+import com.luzart.tubesach.innertube.PlayerData
 import com.luzart.tubesach.player.StreamSourceFactory
 import com.luzart.tubesach.sponsor.SponsorBlock
 import kotlinx.coroutines.runBlocking
@@ -80,7 +82,8 @@ class OnlinePipelineTest {
         val id = System.getProperty("videoId") ?: "dQw4w9WgXcQ"
         val t0 = System.currentTimeMillis()
         val data = runBlocking { YouTubeRepository.player(id) }
-        println("visionOS /player: ${System.currentTimeMillis() - t0} ms, độ phân giải ${data.availableHeights}, phụ đề ${data.captions.size}")
+        val client = data.clientUserAgent?.substringBefore(" ") ?: "visionOS"
+        println("/player ($client): ${System.currentTimeMillis() - t0} ms, độ phân giải ${data.availableHeights}, phụ đề ${data.captions.size}")
         assertNotNull(data.dashManifest())
         assertNotNull(data.playbackTrackingUrl)
         val caption = data.captions.firstOrNull()
@@ -94,6 +97,39 @@ class OnlinePipelineTest {
         assertTrue("Phải có nhiều độ phân giải để tự đổi chất lượng", video.length >= 3)
         assertTrue(tracks.groups.any { it.type == C.TRACK_TYPE_AUDIO })
         if (sub != null) assertTrue("Phải có luồng phụ đề", tracks.groups.any { it.type == C.TRACK_TYPE_TEXT })
+    }
+
+    /** Máy khách dự phòng ANDROID_VR (khi visionOS hỏng), gọi riêng – không qua visionOS. */
+    @Test
+    fun androidVrPlayerPath() {
+        val id = System.getProperty("videoId") ?: "dQw4w9WgXcQ"
+        var first: PlayerData? = null
+        for (version in InnerTube.ANDROID_VR_VERSIONS) {
+            val t0 = System.currentTimeMillis()
+            val json = runBlocking { YouTubeRepository.innerTube.playerAndroidVr(id, version) }
+            val data = PlayerData.parse(json, id, InnerTube.androidVrUserAgent(version))
+            println(
+                "ANDROID_VR $version /player: ${System.currentTimeMillis() - t0} ms, độ phân giải ${data.availableHeights}, " +
+                    "phụ đề ${data.captions.size}, ${data.formats.size} định dạng",
+            )
+            assertTrue(
+                "ANDROID_VR $version: phải có ít nhất 1 luồng hình H.264 (avc1)",
+                data.formats.any { it.isVideo && it.mimeType == "video/mp4" && it.codecs.startsWith("avc1") },
+            )
+            assertTrue(
+                "ANDROID_VR $version: phải có ít nhất 1 luồng tiếng mp4",
+                data.formats.any { it.isAudio && it.mimeType == "audio/mp4" },
+            )
+            assertNotNull("ANDROID_VR $version: phải dựng được manifest DASH", data.dashManifest())
+            assertTrue(data.formats.all { InnerTube.isAndroidVrStreamingUrl(it.url) })
+            if (first == null) first = data
+        }
+        // ExoPlayer tải được luồng thật (User-Agent của app YouTube VR).
+        val data = first!!
+        val source = StreamSourceFactory(app, app.http).buildDirect(data, MediaMetadata.Builder().setTitle(data.title).build(), null)
+        val tracks = loadTracks(source)
+        assertTrue(tracks.groups.any { it.type == C.TRACK_TYPE_VIDEO })
+        assertTrue(tracks.groups.any { it.type == C.TRACK_TYPE_AUDIO })
     }
 
     @Test

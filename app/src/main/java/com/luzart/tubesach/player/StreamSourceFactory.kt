@@ -20,6 +20,7 @@ import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.exoplayer.source.MediaSource
 import androidx.media3.exoplayer.source.MergingMediaSource
 import androidx.media3.exoplayer.source.ProgressiveMediaSource
+import com.luzart.tubesach.innertube.InnerTube
 import com.luzart.tubesach.innertube.PlayerData
 import com.luzart.tubesach.innertube.Vp9Policy
 import com.luzart.tubesach.net.OkHttpDownloader
@@ -72,7 +73,7 @@ class StreamSourceFactory(context: Context, http: OkHttpClient) {
     private val mediaSourceFactory = DefaultMediaSourceFactory(dataSourceFactory)
 
     /**
-     * Đường nhanh: dùng dữ liệu /player (visionOS). Dựng manifest DASH có nhiều độ phân giải
+     * Đường nhanh: dùng dữ liệu /player (visionOS hoặc ANDROID_VR). Dựng manifest DASH có nhiều độ phân giải
      * → ExoPlayer tự đổi chất lượng theo mạng. Phụ đề (nếu chọn) được gắn kèm.
      */
     fun buildDirect(
@@ -95,6 +96,8 @@ class StreamSourceFactory(context: Context, http: OkHttpClient) {
     }
 
     private fun userAgentFor(url: String): String = when {
+        // Trước kiểm tra Android: link ANDROID_VR cần User-Agent của app YouTube VR (Oculus).
+        InnerTube.isAndroidVrStreamingUrl(url) -> InnerTube.androidVrUserAgent()
         YoutubeParsingHelper.isAndroidStreamingUrl(url) -> YoutubeParsingHelper.getAndroidUserAgent(null)
         YoutubeParsingHelper.isIosStreamingUrl(url) -> YoutubeParsingHelper.getIosUserAgent(null)
         YoutubeParsingHelper.isVisionOsStreamingUrl(url) -> YoutubeParsingHelper.getVisionOsUserAgent(null)
