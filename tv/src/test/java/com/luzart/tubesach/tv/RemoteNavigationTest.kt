@@ -328,13 +328,15 @@ class RemoteNavigationTest {
         compose.press(KeyEvent.KEYCODE_DPAD_RIGHT)
         assertEquals("setting:Chất lượng video", compose.focusedTag())
         compose.press(KeyEvent.KEYCODE_DPAD_DOWN)
+        assertEquals("setting:Độ nét tối đa TV phát được", compose.focusedTag())
+        compose.press(KeyEvent.KEYCODE_DPAD_DOWN)
         assertEquals("setting:Tự động phát video tiếp theo", compose.focusedTag())
         assertTrue(testApp.store.settings.value.autoplay)
         compose.press(KeyEvent.KEYCODE_DPAD_CENTER)
         assertFalse(testApp.store.settings.value.autoplay)
 
         // Bảng chọn trong Cài đặt: Quay lại đóng bảng, không thoát trang.
-        compose.press(KeyEvent.KEYCODE_DPAD_UP)
+        compose.press(KeyEvent.KEYCODE_DPAD_UP, 2)
         compose.press(KeyEvent.KEYCODE_DPAD_CENTER)
         compose.onNodeWithTag("panel:Chất lượng video").assertIsDisplayed()
         back()

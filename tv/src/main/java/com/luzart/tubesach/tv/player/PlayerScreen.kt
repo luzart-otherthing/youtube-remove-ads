@@ -522,7 +522,7 @@ private fun Controls(
                     { vm.panel = PlayerPanel.QUALITY },
                     onFocused = {
                         val h = PlaybackController.currentHeight()
-                        label = "Chất lượng: " + QualityOption.current(settings).label + (h?.let { " – đang phát ${it}p" } ?: "")
+                        label = "Chất lượng: " + QualityOption.current(settings).label + (h?.let { " – đang phát " + QualityOption.heightLabel(it) } ?: "")
                     },
                 )
                 TvIconButton(

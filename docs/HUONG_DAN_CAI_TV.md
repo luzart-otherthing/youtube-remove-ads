@@ -132,8 +132,17 @@ Các nút trên thanh điều khiển (chọn nút nào thì có chữ giải th
 **Bấm nút YouTube trên remote có mở Tube Sạch TV không?**
 Không. Nút đó do hãng TV cài sẵn để mở app YouTube gốc. Hãy mở Tube Sạch TV từ màn hình chính (Bước 4).
 
-**Có xem được 4K không?**
-App phát tối đa **1080p** (chuẩn H.264). Mọi TV đều giải mã chuẩn này bằng phần cứng nên chạy mượt, kể cả TV RAM 2 GB như Coocaa 55Y73. Có thể chỉnh trong *Cài đặt → Chất lượng video*.
+**Có xem được 2K, 4K không?**
+Có, nếu video được đăng ở độ nét đó. YouTube chỉ có 2K / 4K / 8K ở dạng mã hoá **VP9**. Khi mở, app kiểm tra chip giải mã của TV rồi phát tới mức cao nhất mà chip làm được bằng phần cứng.
+- TV 4K như Coocaa 55Y73: tới **2160p (4K)**.
+- TV không có chip phù hợp: tự dùng H.264 1080p cho mượt.
+
+Xem TV của bạn được tới đâu ở *Cài đặt → Độ nét tối đa TV phát được*.
+- **Tự động** (mặc định): chọn mức nét nhất mà mạng chạy mượt. 4K cần mạng khoảng 25 Mbps trở lên; nếu TV nối dây mạng LAN thì càng ổn định.
+- **Cao nhất có thể**: luôn phát nét nhất.
+- Hoặc chọn hẳn một mức, ví dụ **2160p (4K)**.
+
+Khi xem, chọn nút **HQ** sẽ thấy dòng "đang phát 2160p (4K)". Video HDR được phát ở chế độ thường (SDR) để màu đúng trên mọi TV.
 
 **Có cần đăng nhập không? Có đề xuất video không?**
 Không cần đăng nhập. Lần đầu mở app, trang chủ hiện *Thịnh hành tại Việt Nam*. Sau khi xem vài video, YouTube sẽ đề xuất theo những gì bạn đã xem (ẩn danh). Tắt được trong Cài đặt.

@@ -24,6 +24,7 @@ import com.luzart.tubesach.data.YouTubeRepository
 import com.luzart.tubesach.innertube.CaptionTrack
 import com.luzart.tubesach.innertube.InnerTubeException
 import com.luzart.tubesach.innertube.PlayerData
+import com.luzart.tubesach.innertube.StreamPolicy
 import com.luzart.tubesach.innertube.WatchTracker
 import com.luzart.tubesach.sponsor.Dislikes
 import com.luzart.tubesach.sponsor.Segment
@@ -89,6 +90,18 @@ object PlaybackController {
 
     /** false trên TV: không chạy dịch vụ phát nền (rời app là dừng, giống YouTube trên TV). */
     private var backgroundService = true
+
+    /**
+     * Loại luồng hình: điện thoại dùng H.264 ≤ 1080p; app TV đặt VP9 tới 4K/8K tuỳ chip của TV
+     * (xem [com.luzart.tubesach.player.CodecSupport]).
+     */
+    var streamPolicy: StreamPolicy = StreamPolicy.PHONE
+
+    /**
+     * true trên TV: không giới hạn độ phân giải theo kích thước giao diện của màn hình
+     * (nhiều TV 4K vẽ giao diện ở 1080p nhưng vẫn phát video 4K được).
+     */
+    var ignoreDisplaySize = false
 
     /** Màn hình mở ra khi bấm vào thông báo / màn hình khoá. Mỗi app (điện thoại, TV) tự đặt. */
     var sessionActivityIntent: (Context) -> Intent = { ctx ->
@@ -264,7 +277,7 @@ object PlaybackController {
                     val data = runCatching { YouTubeRepository.player(video.id) }
                         .onFailure { directError = it }
                         .getOrNull()
-                    if (data != null && (data.dashManifest() != null || data.hlsUrl != null)) {
+                    if (data != null && (data.dashManifest(streamPolicy) != null || data.hlsUrl != null)) {
                         currentData = data
                         usingFallback = false
                         item = item.copy(
@@ -278,11 +291,11 @@ object PlaybackController {
                         _nowPlaying.value = _nowPlaying.value?.copy(
                             video = item,
                             captions = data.captions,
-                            availableHeights = data.availableHeights,
+                            availableHeights = data.availableHeights(streamPolicy),
                         )
                         if (fresh) autoSelectCaption(data.captions)
                         tracker.begin(data, startPositionMs)
-                        sources.buildDirect(data, metadataOf(item), subtitleConfig())
+                        sources.buildDirect(data, metadataOf(item), subtitleConfig(), streamPolicy)
                     } else null
                 } else null
 
@@ -438,6 +451,7 @@ object PlaybackController {
             .clearVideoSizeConstraints()
             .setMinVideoSize(0, 0)
             .setForceHighestSupportedBitrate(false)
+        if (ignoreDisplaySize) b.clearViewportSizeConstraints()
         when (s.quality) {
             QualityMode.AUTO -> Unit
             QualityMode.HIGHER -> b.setForceHighestSupportedBitrate(true)
@@ -492,7 +506,7 @@ object PlaybackController {
         val item = _nowPlaying.value?.video ?: return
         val pos = p.currentPosition
         val playing = p.playWhenReady
-        p.setMediaSource(sources.buildDirect(data, metadataOf(item), subtitleConfig()), pos)
+        p.setMediaSource(sources.buildDirect(data, metadataOf(item), subtitleConfig(), streamPolicy), pos)
         p.prepare()
         p.playWhenReady = playing
     }

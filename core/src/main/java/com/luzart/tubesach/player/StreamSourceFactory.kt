@@ -20,6 +20,7 @@ import androidx.media3.exoplayer.source.MediaSource
 import androidx.media3.exoplayer.source.MergingMediaSource
 import androidx.media3.exoplayer.source.ProgressiveMediaSource
 import com.luzart.tubesach.innertube.PlayerData
+import com.luzart.tubesach.innertube.StreamPolicy
 import com.luzart.tubesach.net.OkHttpDownloader
 import org.schabi.newpipe.extractor.MediaFormat
 import org.schabi.newpipe.extractor.services.youtube.YoutubeParsingHelper
@@ -75,9 +76,10 @@ class StreamSourceFactory(context: Context) {
         data: PlayerData,
         metadata: MediaMetadata,
         subtitle: MediaItem.SubtitleConfiguration?,
+        policy: StreamPolicy = StreamPolicy.PHONE,
     ): MediaSource {
         val builder = MediaItem.Builder().setMediaId(data.videoId).setMediaMetadata(metadata)
-        val manifest = if (data.isLive) null else data.dashManifest()
+        val manifest = if (data.isLive) null else data.dashManifest(policy)
         when {
             manifest != null -> builder
                 .setUri("data:application/dash+xml;base64," + Base64.encodeToString(manifest.toByteArray(), Base64.NO_WRAP))

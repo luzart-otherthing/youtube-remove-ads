@@ -36,7 +36,8 @@ Bản dành riêng cho **Google TV / Android TV**, ví dụ TV Coocaa 55Y73. Đi
 - **SponsorBlock** (tự bỏ qua đoạn tài trợ, có tô màu trên thanh tua) và **Return YouTube Dislike**: dùng chung phần lõi với bản điện thoại.
 - **Giữ OK** trên một video để mở menu: *Xem sau*, *Đi đến kênh*, *Phát từ đầu*, *Không quan tâm*.
 - Thoát video là ô sáng quay lại đúng video vừa xem. Nút Quay lại hoạt động như YouTube trên TV. Rời app (nút Home) thì video tạm dừng, vị trí xem được lưu lại.
-- Nhẹ cho TV yếu (RAM 2 GB): APK khoảng 4 MB, phát H.264 tối đa 1080p bằng phần cứng, giới hạn bộ nhớ ảnh.
+- **Nét tới 2K / 4K / 8K** (tuỳ video): app kiểm tra chip giải mã của TV rồi phát luồng VP9 của YouTube tới mức cao nhất mà phần cứng làm được. TV không hỗ trợ thì tự dùng H.264 1080p.
+- Nhẹ cho TV yếu (RAM 2 GB): APK khoảng 4 MB, giới hạn bộ nhớ ảnh.
 - Tự tải và cài bản cập nhật ngay trên TV, vì TV thường không có trình duyệt. Tính năng này chỉ chạy khi repo để công khai.
 - Cài song song với app điện thoại được, vì là gói riêng `com.luzart.tubesach.tv`.
 

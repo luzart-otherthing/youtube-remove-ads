@@ -2,18 +2,33 @@ package com.luzart.tubesach.tv.player
 
 import com.luzart.tubesach.data.QualityMode
 import com.luzart.tubesach.data.Settings
+import com.luzart.tubesach.player.CodecSupport
+import com.luzart.tubesach.player.PlaybackController
 
 /** Một lựa chọn trong bảng "Chất lượng" (dùng chung cho trình phát và trang Cài đặt). */
 data class QualityOption(val label: String, val description: String?, val mode: QualityMode, val height: Int?) {
     companion object {
-        /** Luồng H.264 tối đa 1080p – TV nào cũng giải mã được mượt bằng phần cứng. */
-        val heights = listOf(1080, 720, 480, 360)
+        val heights = listOf(4320, 2160, 1440, 1080, 720, 480, 360)
 
-        val all: List<QualityOption> = listOf(
-            QualityOption("Tự động (khuyên dùng)", "Tự chọn theo tốc độ mạng", QualityMode.AUTO, null),
-            QualityOption("Chất lượng cao hơn", "Nét nhất có thể, tốn mạng hơn", QualityMode.HIGHER, null),
-            QualityOption("Tiết kiệm dữ liệu", "Tối đa 360p", QualityMode.DATA_SAVER, null),
-        ) + heights.map { QualityOption("${it}p", null, QualityMode.ADVANCED, it) }
+        /** "2160p (4K)", "1440p (2K)", "720p". */
+        fun heightLabel(h: Int) = when {
+            h >= 1440 -> "${h}p (${CodecSupport.label(h)})"
+            else -> "${h}p"
+        }
+
+        /** Các lựa chọn cho máy giải mã được tới [maxHeight] (TV 4K: tới 2160p). */
+        fun options(maxHeight: Int): List<QualityOption> {
+            val top = maxOf(maxHeight, 1080)
+            val best = if (top >= 1440) " (tới ${CodecSupport.label(top)} nếu video có)" else ""
+            return listOf(
+                QualityOption("Tự động (khuyên dùng)", "Nét nhất mà mạng nhà bạn chạy mượt$best", QualityMode.AUTO, null),
+                QualityOption("Cao nhất có thể", "Luôn phát nét nhất$best, cần mạng mạnh", QualityMode.HIGHER, null),
+                QualityOption("Tiết kiệm dữ liệu", "Tối đa 360p", QualityMode.DATA_SAVER, null),
+            ) + heights.filter { it <= top }.map { QualityOption(heightLabel(it), null, QualityMode.ADVANCED, it) }
+        }
+
+        /** Theo khả năng giải mã của máy đang chạy. */
+        val all: List<QualityOption> get() = options(PlaybackController.streamPolicy.maxHeight)
 
         fun current(s: Settings): QualityOption =
             all.firstOrNull { it.mode == s.quality && (it.mode != QualityMode.ADVANCED || it.height == s.fixedHeight) }

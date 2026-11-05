@@ -106,6 +106,13 @@ class PlayerLogicTest {
         assertEquals("480p", fixed.label)
         // Độ phân giải lạ (ví dụ cài từ app điện thoại cũ) vẫn không làm app lỗi.
         assertEquals(QualityMode.ADVANCED, QualityOption.current(Settings(quality = QualityMode.ADVANCED, fixedHeight = 144)).mode)
-        assertEquals(7, QualityOption.all.size)
+        // TV chỉ phát được 1080p: 3 chế độ + 1080/720/480/360. TV 4K: thêm 1440p (2K), 2160p (4K).
+        assertEquals(7, QualityOption.options(1080).size)
+        val tv4k = QualityOption.options(2160)
+        assertEquals(9, tv4k.size)
+        assertTrue(tv4k.any { it.label == "2160p (4K)" && it.height == 2160 })
+        assertTrue(tv4k.any { it.label == "1440p (2K)" })
+        assertTrue(tv4k.none { it.height == 4320 })
+        assertTrue(QualityOption.options(4320).any { it.label == "4320p (8K)" })
     }
 }

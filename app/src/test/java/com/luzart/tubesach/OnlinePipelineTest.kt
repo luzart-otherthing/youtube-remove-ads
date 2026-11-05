@@ -20,6 +20,7 @@ import com.luzart.tubesach.sponsor.SponsorBlock
 import kotlinx.coroutines.runBlocking
 import okhttp3.Request
 import org.json.JSONArray
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Assume.assumeTrue
@@ -94,6 +95,23 @@ class OnlinePipelineTest {
         assertTrue("Phải có nhiều độ phân giải để tự đổi chất lượng", video.length >= 3)
         assertTrue(tracks.groups.any { it.type == C.TRACK_TYPE_AUDIO })
         if (sub != null) assertTrue("Phải có luồng phụ đề", tracks.groups.any { it.type == C.TRACK_TYPE_TEXT })
+    }
+
+    /** Video 4K: ExoPlayer đọc được luồng VP9 2160p/1440p (dùng cho app TV có chip giải mã 4K). */
+    @Test
+    fun vp9UpTo4kForTv() {
+        val id = "LXb3EKWsInQ"
+        val data = runBlocking { YouTubeRepository.player(id) }
+        val policy = com.luzart.tubesach.innertube.StreamPolicy(com.luzart.tubesach.innertube.VideoCodec.VP9, 2160)
+        println("4K: độ phân giải cho TV ${data.availableHeights(policy)}, cho điện thoại ${data.availableHeights}")
+        assertTrue(2160 in data.availableHeights(policy))
+        val source = StreamSourceFactory(app).buildDirect(data, MediaMetadata.Builder().build(), null, policy)
+        val tracks = loadTracks(source)
+        val video = tracks.groups.first { it.type == C.TRACK_TYPE_VIDEO }
+        val heights = (0 until video.length).map { video.getTrackFormat(it).height }
+        println("ExoPlayer: ${video.getTrackFormat(0).sampleMimeType} $heights")
+        assertEquals(MimeTypes.VIDEO_VP9, video.getTrackFormat(0).sampleMimeType)
+        assertTrue(2160 in heights && 1440 in heights)
     }
 
     @Test

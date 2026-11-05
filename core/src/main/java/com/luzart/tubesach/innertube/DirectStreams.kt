@@ -25,6 +25,19 @@ data class StreamFormat(
     val isAudio get() = mimeType.startsWith("audio/")
 }
 
+enum class VideoCodec { H264, VP9 }
+
+/**
+ * Chọn loại luồng hình:
+ * - điện thoại: H.264 ≤ 1080p (đỡ tốn pin và 4G);
+ * - TV: VP9 tới độ phân giải cao nhất mà chip giải mã của TV làm được (2K, 4K, 8K…).
+ */
+data class StreamPolicy(val codec: VideoCodec, val maxHeight: Int) {
+    companion object {
+        val PHONE = StreamPolicy(VideoCodec.H264, 1080)
+    }
+}
+
 /** Một phụ đề có sẵn của video. */
 data class CaptionTrack(
     val name: String,
@@ -56,32 +69,59 @@ data class PlayerData(
     val expiresAtMs: Long,
     val captions: List<CaptionTrack> = emptyList(),
 ) {
-    /** Các độ phân giải có thể chọn trong menu "Chất lượng". */
-    val availableHeights: List<Int>
-        get() = formats.filter { it.isVideo && it.mimeType == "video/mp4" && it.codecs.startsWith("avc1") && it.height in 1..1080 }
-            .map { it.height }.distinct().sortedDescending()
+    /** Các độ phân giải có thể chọn trong menu "Chất lượng" (theo [policy]). */
+    fun availableHeights(policy: StreamPolicy = StreamPolicy.PHONE): List<Int> =
+        videoFormats(policy).map { it.height }.distinct().sortedDescending()
+
+    /** Giữ cho code cũ: độ phân giải H.264 ≤ 1080p. */
+    val availableHeights: List<Int> get() = availableHeights(StreamPolicy.PHONE)
+
+    private fun h264(maxHeight: Int) = formats
+        .filter { it.isVideo && it.mimeType == "video/mp4" && it.codecs.startsWith("avc1") && it.height in 1..minOf(maxHeight, 1080) }
+
+    /** VP9 thường (SDR). Bỏ "vp9.2" (HDR) vì nhiều TV giá rẻ hiển thị HDR sai màu. */
+    private fun vp9(maxHeight: Int) = formats
+        .filter { it.isVideo && it.mimeType == "video/webm" && (it.codecs == "vp9" || it.codecs.startsWith("vp09.00")) && it.height in 1..maxHeight }
 
     /**
-     * Dựng manifest DASH gồm nhiều độ phân giải H.264 (≤ [maxHeight]) và một luồng tiếng AAC.
+     * Luồng hình dùng để dựng manifest: VP9 (có 2K/4K/8K) nếu máy giải mã được và video có,
+     * nếu không thì H.264 (tối đa 1080p – máy nào cũng phát được).
+     * Chỉ dùng **một** loại mã hoá để ExoPlayer tự đổi chất lượng mượt trong cùng một nhóm.
+     */
+    fun videoFormats(policy: StreamPolicy = StreamPolicy.PHONE): List<StreamFormat> {
+        val usable = { list: List<StreamFormat> ->
+            list.filter { it.indexEnd > 0 && it.initEnd > 0 }.sortedByDescending { it.bitrate }.distinctBy { it.height to it.fps }
+        }
+        if (policy.codec == VideoCodec.VP9) {
+            val v = usable(vp9(policy.maxHeight))
+            // Chỉ đáng dùng VP9 khi nó cho độ nét cao hơn H.264 (2K trở lên) hoặc video không có H.264.
+            val h = usable(h264(policy.maxHeight))
+            if (v.isNotEmpty() && (h.isEmpty() || v.maxOf { it.height } > h.maxOf { it.height })) return v
+            if (h.isNotEmpty()) return h
+            return v
+        }
+        return usable(h264(policy.maxHeight))
+    }
+
+    /**
+     * Dựng manifest DASH gồm nhiều độ phân giải (cùng một loại mã hoá) và luồng tiếng AAC.
      * ExoPlayer sẽ tự chọn chất lượng theo tốc độ mạng – giống chế độ "Tự động" của YouTube.
      */
-    fun dashManifest(maxHeight: Int = 1080): String? {
-        val video = formats
-            .filter { it.isVideo && it.mimeType == "video/mp4" && it.codecs.startsWith("avc1") && it.height in 1..maxHeight }
-            .filter { it.indexEnd > 0 && it.initEnd > 0 }
-            .distinctBy { it.height to it.fps }
+    fun dashManifest(policy: StreamPolicy = StreamPolicy.PHONE): String? {
+        val video = videoFormats(policy)
         val audioAll = formats.filter { it.isAudio && it.mimeType == "audio/mp4" && it.indexEnd > 0 && it.initEnd > 0 }
         val audio = audioAll.filter { it.audioIsDefault || it.audioTrackId == null }.ifEmpty { audioAll }
             .sortedByDescending { it.bitrate }
             .take(2)
         if (video.isEmpty() || audio.isEmpty()) return null
+        val videoMime = video.first().mimeType
 
         val sb = StringBuilder()
         sb.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>")
         sb.append("<MPD xmlns=\"urn:mpeg:dash:schema:mpd:2011\" profiles=\"urn:mpeg:dash:profile:isoff-on-demand:2011\" ")
         sb.append("type=\"static\" minBufferTime=\"PT1.500S\" mediaPresentationDuration=\"PT${lengthSec.coerceAtLeast(1)}S\">")
         sb.append("<Period>")
-        sb.append("<AdaptationSet id=\"0\" contentType=\"video\" mimeType=\"video/mp4\" subsegmentAlignment=\"true\" startWithSAP=\"1\">")
+        sb.append("<AdaptationSet id=\"0\" contentType=\"video\" mimeType=\"$videoMime\" subsegmentAlignment=\"true\" startWithSAP=\"1\">")
         video.forEach { sb.representation(it) }
         sb.append("</AdaptationSet>")
         sb.append("<AdaptationSet id=\"1\" contentType=\"audio\" mimeType=\"audio/mp4\" subsegmentAlignment=\"true\" startWithSAP=\"1\">")

@@ -74,6 +74,14 @@ fun SettingsScreen(vm: TvViewModel) {
                 }
             }
             item {
+                val max = com.luzart.tubesach.player.PlaybackController.streamPolicy.maxHeight
+                SettingRow(
+                    "Độ nét tối đa TV phát được",
+                    "${max}p (${com.luzart.tubesach.player.CodecSupport.label(max)})",
+                    "Do chip giải mã của TV quyết định. Video chỉ nét tới mức mà người đăng tải lên.",
+                ) {}
+            }
+            item {
                 SettingRow("Tự động phát video tiếp theo", onOff(s.autoplay)) {
                     vm.store.updateSettings { it.copy(autoplay = !it.autoplay) }
                 }
@@ -209,7 +217,7 @@ fun SettingsScreen(vm: TvViewModel) {
 private fun QualityPanel(s: Settings, onDone: () -> Unit) {
     val first = remember { FocusRequester() }
     val current = QualityOption.current(s)
-    SidePanel("Chất lượng video", initialFocus = first, subtitle = "Tối đa 1080p") {
+    SidePanel("Chất lượng video", initialFocus = first, subtitle = "TV của bạn phát được tới ${com.luzart.tubesach.player.PlaybackController.streamPolicy.maxHeight}p") {
         QualityOption.all.forEach { opt ->
             item {
                 PanelOption(
