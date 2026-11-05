@@ -11,7 +11,7 @@ on:
         required: false
         default: "dQw4w9WgXcQ"
   push:
-    branches: ["claude/**"]
+    branches: ["thu-nghiem/**"]
     paths:
       # Chỉ chạy khi mã thử nghiệm đổi (không chạy lại khi chỉ cập nhật ảnh/kết quả trong ket-qua/).
       - "experiments/revanced/*.sh"
