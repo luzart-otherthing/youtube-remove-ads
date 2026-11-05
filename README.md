@@ -94,6 +94,14 @@ Trình phát là trình phát gốc của iOS nên có sẵn:
 - hình trong hình khi về màn hình chính;
 - phát tiếp khi tắt màn hình, có nút điều khiển trên màn hình khoá và tai nghe.
 
+Giống bản Android, bản iOS còn có:
+
+- tải thêm video liên quan khi cuộn xuống;
+- tải sẵn video tiếp theo để tự phát ngay, tự bỏ qua video không xem được (tối đa 3 video liền);
+- có mạng lại thì tự tải lại; tạm dừng lâu thì tự lấy link phát mới;
+- Shorts dọc phủ kín màn hình, có nút bình luận;
+- đăng nhập tài khoản Google (thử nghiệm, xem mục ở trên). Cookie đăng nhập nằm trong Keychain của máy.
+
 | Trang chủ | Xem video | Tìm kiếm | Kênh | Giao diện tối |
 |---|---|---|---|---|
 | ![](docs/screenshots/ios_iphone_01_trang_chu.jpg) | ![](docs/screenshots/ios_iphone_02_xem_video.jpg) | ![](docs/screenshots/ios_iphone_03_tim_kiem.jpg) | ![](docs/screenshots/ios_iphone_05_kenh.jpg) | ![](docs/screenshots/ios_iphone_07_xem_video_toi.jpg) |
