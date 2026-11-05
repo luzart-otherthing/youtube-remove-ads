@@ -39,9 +39,10 @@ Nhánh: `claude/great-brahmagupta-enb3tq`. Nhánh đã gộp `main` (kể cả c
 
 ## Việc tiếp theo
 
-1. Xem kết quả lần chạy `[screenshots]` mới nhất: trang Cài đặt có mục Tài khoản Google, trang đăng nhập Google tải được.
-2. Hỏi người dùng có tạo PR / merge vào `main` không. Chỉ khi merge mới có Release kèm file `.ipa`.
-3. Lỗi nhỏ bên Android, nên làm ở việc riêng: `Parser.lockup` đọc sai metadata của video trong tab kênh. Bản Swift đã sửa bằng `looksLikeViews`.
+1. Lần chạy `[screenshots]` số 6 đã kiểm chứng: Cài đặt có mục Tài khoản Google, trang đăng nhập Google tải được, iPad xếp video liên quan 3 cột.
+2. Đã tạo PR https://github.com/luzart-otherthing/youtube-remove-ads/pull/2 (chưa merge). Merge xong, workflow tự tạo Release `ios-v1.0.N` kèm file `.ipa`.
+3. Chưa chạy thử trên iPhone/iPad thật. Khi người dùng cài thử, hỏi họ về: hình trong hình, phát khi tắt màn hình, Shorts, và đăng nhập Google.
+4. Lỗi nhỏ bên Android, nên làm ở việc riêng: `Parser.lockup` đọc sai metadata của video trong tab kênh. Bản Swift đã sửa bằng `looksLikeViews`.
 
 ## Lệnh hay dùng
 
