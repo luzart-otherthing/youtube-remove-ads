@@ -1,6 +1,6 @@
 # Ngữ cảnh làm bản iOS (để phiên sau làm tiếp)
 
-Nhánh: `claude/great-brahmagupta-enb3tq`. Nhánh đã gộp `main` (kể cả các sửa lỗi Android và đăng nhập Google thử nghiệm).
+Nhánh: `feature/ios-app` (trước đây là `claude/great-brahmagupta-enb3tq`, PR cũ #2 đã đóng). Nhánh đã gộp `main` (kể cả các sửa lỗi Android và đăng nhập Google thử nghiệm).
 
 ## Đã xong
 
@@ -40,7 +40,7 @@ Nhánh: `claude/great-brahmagupta-enb3tq`. Nhánh đã gộp `main` (kể cả c
 ## Việc tiếp theo
 
 1. Lần chạy `[screenshots]` số 6 đã kiểm chứng: Cài đặt có mục Tài khoản Google, trang đăng nhập Google tải được, iPad xếp video liên quan 3 cột.
-2. Đã tạo PR https://github.com/luzart-otherthing/youtube-remove-ads/pull/2 (chưa merge). Merge xong, workflow tự tạo Release `ios-v1.0.N` kèm file `.ipa`.
+2. PR mở từ nhánh `feature/ios-app` vào `main` (chưa merge). Merge xong, workflow tự tạo Release `ios-v1.0.N` kèm file `.ipa`.
 3. Chưa chạy thử trên iPhone/iPad thật. Khi người dùng cài thử, hỏi họ về: hình trong hình, phát khi tắt màn hình, Shorts, và đăng nhập Google.
 4. Lỗi nhỏ bên Android, nên làm ở việc riêng: `Parser.lockup` đọc sai metadata của video trong tab kênh. Bản Swift đã sửa bằng `looksLikeViews`.
 
