@@ -13,14 +13,19 @@ public enum HTTP {
     }()
 
     public static func data(_ request: URLRequest) async throws -> (Data, Int) {
+        let (data, response) = try await response(request)
+        return (data, response?.statusCode ?? 0)
+    }
+
+    /// Giống `data` nhưng trả cả phản hồi (để đọc Set-Cookie).
+    public static func response(_ request: URLRequest) async throws -> (Data, HTTPURLResponse?) {
         try await withCheckedThrowingContinuation { cont in
             let task = session.dataTask(with: request) { data, response, error in
                 if let error {
-                    cont.resume(throwing: InnerTubeError("Không có kết nối mạng (\(error.localizedDescription))"))
+                    cont.resume(throwing: InnerTubeError("Không có kết nối mạng (\(error.localizedDescription))", code: -1))
                     return
                 }
-                let code = (response as? HTTPURLResponse)?.statusCode ?? 0
-                cont.resume(returning: (data ?? Data(), code))
+                cont.resume(returning: (data ?? Data(), response as? HTTPURLResponse))
             }
             task.resume()
         }
@@ -39,6 +44,8 @@ public enum HTTP {
 /// - Ngôn ngữ tiếng Việt (hl=vi), khu vực Việt Nam (gl=VN) → đề xuất, thịnh hành đều tiếng Việt.
 /// - Không đăng nhập. YouTube nhận diện "khách ẩn danh" qua `visitorData` (giống trình duyệt
 ///   chưa đăng nhập), nhờ vậy trang chủ có đề xuất theo những video đã xem trên máy này.
+/// - Đăng nhập Google (thử nghiệm, `account`): chỉ các yêu cầu WEB mang cookie + SAPISIDHASH;
+///   link phát video vẫn lấy ẩn danh.
 public final class InnerTube {
     public static let hl = "vi"
     public static let gl = "VN"
@@ -56,6 +63,16 @@ public final class InnerTube {
     private let lock = NSLock()
     private var visitor: String?
     private var webVersion: String?
+    private var _account: AccountSession?
+
+    /// Tài khoản Google (thử nghiệm). nil = ẩn danh như trước.
+    public var account: AccountSession? {
+        get { locked { _account } }
+        set { locked { _account = newValue } }
+    }
+
+    /// Đang dùng tài khoản Google (có cookie hợp lệ).
+    public var signedIn: Bool { account?.isValid == true }
 
     public init(loadVisitor: @escaping () -> String?, saveVisitor: @escaping (String) -> Void) {
         self.loadVisitor = loadVisitor
@@ -106,15 +123,19 @@ public final class InnerTube {
         return found
     }
 
-    private func post(_ url: String, body: [String: Any], headers: [String: String]) async throws -> JSON {
+    private func post(_ url: String, body: [String: Any], headers: [String: String], session: AccountSession? = nil) async throws -> JSON {
         guard let u = URL(string: url) else { throw InnerTubeError("Link không hợp lệ") }
         var req = URLRequest(url: u)
         req.httpMethod = "POST"
         req.httpBody = try JSONSerialization.data(withJSONObject: body)
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        // Có tài khoản: tự gửi cookie đăng nhập, không trộn với cookie ẩn danh của app.
+        if session != nil { req.httpShouldHandleCookies = false }
         for (k, v) in headers { req.setValue(v, forHTTPHeaderField: k) }
         if let v = visitorData { req.setValue(v, forHTTPHeaderField: "X-Goog-Visitor-Id") }
-        let (data, code) = try await HTTP.data(req)
+        let (data, response) = try await HTTP.response(req)
+        session?.absorb(response)
+        let code = response?.statusCode ?? 0
         guard (200..<300).contains(code) else { throw InnerTubeError("YouTube trả lỗi HTTP \(code)", code: code) }
         let json: JSON
         do { json = try JSON.parse(data) } catch { throw InnerTubeError("YouTube trả dữ liệu lạ") }
@@ -139,17 +160,45 @@ public final class InnerTube {
             "timeZone": "Asia/Ho_Chi_Minh",
             "utcOffsetMinutes": 420,
         ])
+        var headers = [
+            "User-Agent": Self.webUA,
+            "X-YouTube-Client-Name": "1",
+            "X-YouTube-Client-Version": version,
+            "Origin": "https://www.youtube.com",
+            "Referer": "https://www.youtube.com/",
+        ]
+        // Đã đăng nhập → gửi kèm cookie + SAPISIDHASH giống trang web YouTube.
+        let session = account
+        let auth = session?.authHeaders()
+        if let auth { headers.merge(auth) { _, new in new } }
         return try await post(
             "https://www.youtube.com/youtubei/v1/\(endpoint)?prettyPrint=false",
             body: b,
-            headers: [
-                "User-Agent": Self.webUA,
-                "X-YouTube-Client-Name": "1",
-                "X-YouTube-Client-Version": version,
-                "Origin": "https://www.youtube.com",
-                "Referer": "https://www.youtube.com/",
-            ]
+            headers: headers,
+            session: auth != nil ? session : nil
         )
+    }
+
+    // MARK: Chỉ khi đã đăng nhập
+
+    public func accountMenu() async throws -> JSON { try await web("account/account_menu", [:]) }
+
+    public func subscribe(channelId: String, subscribe: Bool) async throws -> JSON {
+        try await web(subscribe ? "subscription/subscribe" : "subscription/unsubscribe", ["channelIds": [channelId]])
+    }
+
+    /// `action`: "like", "dislike" hoặc "removelike".
+    public func rate(videoId: String, action: String) async throws -> JSON {
+        try await web("like/\(action)", ["target": ["videoId": videoId]])
+    }
+
+    public func createComment(params: String, text: String) async throws -> JSON {
+        try await web("comment/create_comment", ["createCommentParams": params, "commentText": text])
+    }
+
+    /// /player của máy khách WEB (có đăng nhập) – chỉ để lấy link thống kê lượt xem gắn với tài khoản.
+    public func webPlayer(videoId: String) async throws -> JSON {
+        try await web("player", ["videoId": videoId, "contentCheckOk": true, "racyCheckOk": true])
     }
 
     /// Đảm bảo đã có mã khách ẩn danh trước khi gọi các API khác.
@@ -249,9 +298,19 @@ public final class InnerTube {
     }
 
     /// Gửi một "ping" thống kê lượt xem (để YouTube biết khách ẩn danh này đã xem video nào).
-    public func ping(_ url: String) async {
-        var headers = ["User-Agent": Self.visionUA]
-        if let v = visitorData { headers["X-Goog-Visitor-Id"] = v }
-        _ = try? await HTTP.get(url, headers: headers)
+    /// `authed`: gửi bằng tài khoản (link thống kê của /player WEB khi đã đăng nhập).
+    public func ping(_ url: String, authed: Bool = false) async {
+        guard let u = URL(string: url) else { return }
+        var req = URLRequest(url: u)
+        let session = authed ? account : nil
+        if let session, let auth = session.authHeaders() {
+            req.httpShouldHandleCookies = false
+            req.setValue(Self.webUA, forHTTPHeaderField: "User-Agent")
+            for (k, v) in auth { req.setValue(v, forHTTPHeaderField: k) }
+        } else {
+            req.setValue(Self.visionUA, forHTTPHeaderField: "User-Agent")
+        }
+        if let v = visitorData { req.setValue(v, forHTTPHeaderField: "X-Goog-Visitor-Id") }
+        if let r = try? await HTTP.response(req) { session?.absorb(r.1) }
     }
 }

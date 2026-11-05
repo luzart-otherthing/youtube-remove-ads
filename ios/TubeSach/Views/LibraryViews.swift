@@ -198,7 +198,7 @@ struct VideoListView: View {
         case .history:
             localList(store.history.map(\.video), empty: "Bạn chưa xem video nào") { v in store.removeFromHistory(v.id) }
         case .liked:
-            localList(store.liked, empty: "Chưa có video đã thích") { v in store.toggleLike(v) }
+            localList(store.liked, empty: "Chưa có video đã thích") { v in model.toggleLike(v) }
         case .watchLater:
             localList(store.watchLater, empty: "Bấm “Lưu” ở trang xem video để thêm vào đây") { v in store.toggleWatchLater(v) }
         case .trending, .topMusic:

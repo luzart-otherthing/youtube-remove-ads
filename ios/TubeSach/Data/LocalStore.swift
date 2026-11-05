@@ -243,6 +243,19 @@ final class LocalStore: ObservableObject {
         save(subscriptions, "subscriptions")
     }
 
+    /// Thêm các kênh (ví dụ kênh đã đăng ký trong tài khoản Google) – kênh đã có thì giữ nguyên.
+    func addSubscriptions(_ channels: [ChannelRef]) {
+        var known = Set(subscriptions.map(\.id))
+        let added = channels.filter { known.insert($0.id).inserted }.map { c -> ChannelRef in
+            var ch = c
+            ch.subtitle = nil
+            return ch
+        }
+        guard !added.isEmpty else { return }
+        subscriptions += added
+        save(subscriptions, "subscriptions")
+    }
+
     // MARK: "Không quan tâm"
 
     func hide(_ videoId: String) {

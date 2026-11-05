@@ -103,6 +103,14 @@ public enum Format {
         return videoId(fromURL: text)
     }
 
+    /// Shorts: chỉ phóng to phủ kín màn hình khi phải cắt bớt ≤ 20% hình (giống YouTube);
+    /// video ngang/vuông trong tab Shorts thì giữ nguyên khung.
+    public static func shouldFill(videoAspect: Double, boxAspect: Double) -> Bool {
+        guard videoAspect > 0, boxAspect > 0 else { return false }
+        let crop = videoAspect > boxAspect ? 1 - boxAspect / videoAspect : 1 - videoAspect / boxAspect
+        return crop <= 0.2
+    }
+
     /// So sánh phiên bản "1.0.12" > "1.0.9".
     public static func isNewer(_ remote: String, than local: String) -> Bool {
         func nums(_ s: String) -> [Int] {

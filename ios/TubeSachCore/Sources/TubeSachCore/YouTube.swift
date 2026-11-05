@@ -205,6 +205,77 @@ public final class YouTube {
         }
     }
 
+    // MARK: Tài khoản Google (thử nghiệm)
+
+    public var signedIn: Bool { innerTube.signedIn }
+
+    public func accountInfo() async throws -> AccountInfo? {
+        Parser.accountInfo(try await innerTube.accountMenu())
+    }
+
+    /// Các kênh tài khoản đã đăng ký (tối đa ~10 trang).
+    public func accountChannels() async throws -> [ChannelRef] {
+        var out: [ChannelRef] = []
+        var seen = Set<String>()
+        var r = Parser.accountChannels(try await innerTube.browse(browseId: "FEchannels"))
+        var pages = 0
+        while true {
+            for c in r.channels where seen.insert(c.id).inserted { out.append(c) }
+            guard let token = r.continuation, pages < 10 else { break }
+            pages += 1
+            r = Parser.accountChannels(try await innerTube.browse(continuation: token))
+        }
+        return out
+    }
+
+    /// Video mới từ các kênh đã đăng ký của tài khoản (giống tab "Kênh đăng ký" của YouTube).
+    public func accountSubscriptionFeed() async throws -> FeedPage {
+        Parser.browseGrid(try await innerTube.browse(browseId: "FEsubscriptions"))
+    }
+
+    public func setSubscribed(_ channelId: String, _ subscribed: Bool) async throws {
+        _ = try await innerTube.subscribe(channelId: channelId, subscribe: subscribed)
+    }
+
+    /// `action`: "like", "dislike" hoặc "removelike".
+    public func rate(_ videoId: String, _ action: String) async throws {
+        _ = try await innerTube.rate(videoId: videoId, action: action)
+    }
+
+    private var createParams: [String: String] = [:]
+    private let paramsLock = NSLock()
+
+    private func cachedParams(_ videoId: String, set value: String? = nil) -> String? {
+        paramsLock.lock()
+        defer { paramsLock.unlock() }
+        if let value { createParams[videoId] = value }
+        return createParams[videoId]
+    }
+
+    /// Đăng bình luận bằng tài khoản. Ném lỗi nếu YouTube không cho phép (tắt bình luận…).
+    public func postComment(videoId: String, text: String) async throws {
+        var params = cachedParams(videoId)
+        if params == nil {
+            guard let token = Parser.watch(try await innerTube.next(videoId: videoId), videoId: videoId).commentsToken else {
+                throw InnerTubeError("Video này đã tắt bình luận")
+            }
+            guard let p = Parser.createCommentParams(try await innerTube.next(continuation: token)) else {
+                throw InnerTubeError("Không bình luận được (chưa đăng nhập hoặc video đã tắt bình luận)")
+            }
+            params = cachedParams(videoId, set: p)
+        }
+        let r = try await innerTube.createComment(params: params ?? "", text: text)
+        if let status = r.a("actionResults")?.first?["status"]?.stringValue, !status.isEmpty, status != "STATUS_SUCCEEDED" {
+            throw InnerTubeError("YouTube không nhận bình luận")
+        }
+    }
+
+    /// Link thống kê lượt xem gắn với tài khoản (để ghi lịch sử xem).
+    public func accountTracking(_ videoId: String) async throws -> (playback: String?, watchtime: String?) {
+        let j = try await innerTube.webPlayer(videoId: videoId)
+        return (j.s("playbackTracking", "videostatsPlaybackUrl", "baseUrl"), j.s("playbackTracking", "videostatsWatchtimeUrl", "baseUrl"))
+    }
+
     // MARK: Cập nhật
 
     /// Kiểm tra bản iOS mới trên GitHub Releases (thẻ "ios-v…"). Chỉ chạy được khi kho GitHub để công khai.

@@ -149,11 +149,26 @@ struct ShortPage: View {
         )
     }
 
+    @State private var showComments = false
+
     var body: some View {
+        GeometryReader { geo in
+            content(boxAspect: Double(geo.size.width / max(geo.size.height, 1)))
+        }
+        .sheet(isPresented: $showComments) {
+            CommentsSheet(shorts: true)
+                .environmentObject(model)
+                .environmentObject(store)
+                .presentationDetents([.medium, .large])
+        }
+    }
+
+    private func content(boxAspect: Double) -> some View {
         ZStack {
             Color.black
-            if isPlayingThis && player.info != nil {
-                PlayerLayerView(player: player.avPlayer)
+            if isPlayingThis, let info = player.info {
+                // Shorts dọc: phủ kín màn hình như YouTube; video ngang/vuông: giữ nguyên khung.
+                PlayerLayerView(player: player.avPlayer, fill: Format.shouldFill(videoAspect: info.aspectRatio, boxAspect: boxAspect))
             } else {
                 RemoteImage(url: short.thumbnail, contentMode: .fit, placeholder: .black)
             }
@@ -204,10 +219,19 @@ struct ShortPage: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             VStack(spacing: 22) {
-                Button { store.toggleLike(v) } label: {
+                Button { model.toggleLike(v) } label: {
                     VStack(spacing: 4) {
                         Image(systemName: store.isLiked(v.id) ? "hand.thumbsup.fill" : "hand.thumbsup").font(.title2)
                         Text("Thích").font(.caption)
+                    }
+                }
+                Button {
+                    model.loadShortComments(short.id)
+                    showComments = true
+                } label: {
+                    VStack(spacing: 4) {
+                        Image(systemName: "text.bubble").font(.title2)
+                        Text("Bình luận").font(.caption)
                     }
                 }
                 if let url = URL(string: "https://www.youtube.com/shorts/\(short.id)") {

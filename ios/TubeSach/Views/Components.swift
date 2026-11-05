@@ -314,13 +314,14 @@ struct ChannelRow: View {
 }
 
 struct SubscribeButton: View {
+    @EnvironmentObject var model: AppModel
     @EnvironmentObject var store: LocalStore
     let channel: ChannelRef
 
     var body: some View {
         let subscribed = store.isSubscribed(channel.id)
         Button {
-            store.toggleSubscription(channel)
+            model.toggleSubscription(channel)
         } label: {
             HStack(spacing: 4) {
                 if subscribed { Image(systemName: "bell") }

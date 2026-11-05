@@ -6,6 +6,9 @@ struct SettingsView: View {
     @EnvironmentObject var store: LocalStore
     @State private var confirmReset = false
     @State private var confirmClearHistory = false
+    @State private var confirmLogin = false
+    @State private var confirmLogout = false
+    @State private var showLogin = false
 
     private let captionLanguages: [(String, String)] = [
         ("", "Tắt"), ("vi", "Tiếng Việt"), ("en", "Tiếng Anh"),
@@ -83,8 +86,14 @@ struct SettingsView: View {
             } header: {
                 Text("Quyền riêng tư")
             } footer: {
-                Text("Không cần tài khoản Google. App dùng một mã khách ẩn danh (giống trình duyệt chưa đăng nhập) để YouTube đề xuất video tiếng Việt. Lịch sử, kênh đăng ký chỉ lưu trên máy này.")
+                if model.signedIn {
+                    Text("Ghi video đã xem vào lịch sử xem của tài khoản Google để trang chủ đề xuất theo tài khoản.")
+                } else {
+                    Text("Không cần tài khoản Google. App dùng một mã khách ẩn danh (giống trình duyệt chưa đăng nhập) để YouTube đề xuất video tiếng Việt. Lịch sử, kênh đăng ký chỉ lưu trên máy này.")
+                }
             }
+
+            accountSection
 
             Section("Giới thiệu") {
                 LabeledContent("Phiên bản", value: Services.appVersion)
@@ -108,6 +117,63 @@ struct SettingsView: View {
         .confirmationDialog("Xoá toàn bộ video đã xem?", isPresented: $confirmClearHistory, titleVisibility: .visible) {
             Button("Xoá hết", role: .destructive) { store.clearHistory() }
             Button("Huỷ", role: .cancel) {}
+        }
+        .alert("Đăng nhập tài khoản Google?", isPresented: $confirmLogin) {
+            Button("Vẫn đăng nhập", role: .destructive) { showLogin = true }
+            Button("Huỷ", role: .cancel) {}
+        } message: {
+            Text(Self.loginWarning)
+        }
+        .alert("Đăng xuất?", isPresented: $confirmLogout) {
+            Button("Đăng xuất", role: .destructive) { model.logout() }
+            Button("Huỷ", role: .cancel) {}
+        } message: {
+            Text("App sẽ quay về chế độ không đăng nhập. Video đã xem, đã thích và kênh đăng ký trên máy vẫn được giữ.")
+        }
+        .sheet(isPresented: $showLogin) {
+            LoginView { cookies in model.loginFinished(cookies: cookies) }
+        }
+        .onAppear {
+            // Chỉ dùng khi chụp màn hình tự động (tham số -openLogin YES).
+            if UserDefaults.standard.bool(forKey: "openLogin") && model.account == nil { showLogin = true }
+        }
+    }
+
+    static let loginWarning = """
+    Tính năng thử nghiệm, KHÔNG khuyến khích. App vẫn dùng tốt khi không đăng nhập.
+
+    • Đây không phải app chính thức của YouTube: dùng tài khoản trong app bên ngoài là trái điều khoản của YouTube, tài khoản có thể bị Google hạn chế hoặc khoá.
+    • Nên dùng một tài khoản Google phụ, đừng dùng tài khoản chính.
+    • Bạn nhập mật khẩu trên trang của Google; app không thấy mật khẩu nhưng sẽ giữ phiên đăng nhập trên máy này (ai cầm máy cũng dùng được tài khoản trong app).
+    • Google có thể không cho đăng nhập trong app ("Trình duyệt này không an toàn").
+
+    Khi đăng nhập: trang chủ theo tài khoản, đồng bộ kênh đăng ký, lượt thích, lịch sử xem và viết được bình luận.
+    """
+
+    /// Tài khoản Google – để cuối trang cài đặt, mặc định không đăng nhập.
+    @ViewBuilder
+    private var accountSection: some View {
+        Section {
+            if let me = model.account {
+                HStack(spacing: 12) {
+                    Avatar(url: me.photo, size: 40)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(me.name).font(.headline)
+                        Text(me.handle ?? "Đã đăng nhập").font(.subheadline).foregroundColor(.secondary)
+                    }
+                }
+                Button("Đăng xuất", role: .destructive) { confirmLogout = true }
+            } else {
+                Button("Đăng nhập (không khuyến khích)") { confirmLogin = true }
+            }
+        } header: {
+            Text("Tài khoản Google (thử nghiệm)")
+        } footer: {
+            if model.account == nil {
+                Text("Không cần thiết để xem video. Đọc cảnh báo trước khi đăng nhập.")
+            } else {
+                Text("Link phát video vẫn lấy ẩn danh. Phiên đăng nhập lưu trong Keychain của máy này.")
+            }
         }
     }
 

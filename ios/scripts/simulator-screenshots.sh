@@ -58,6 +58,10 @@ run_device() { # tên-máy tiền-tố
     shot "$udid" "$2_05_kenh" 15
     launch "$udid" -openTab library
     shot "$udid" "$2_06_ban" 8
+    launch "$udid" -openSettings YES
+    shot "$udid" "$2_08_cai_dat" 8
+    launch "$udid" -openSettings YES -openLogin YES
+    shot "$udid" "$2_09_dang_nhap" 15
     xcrun simctl ui "$udid" appearance dark
     launch "$udid" -openVideo "$VIDEO"
     shot "$udid" "$2_07_xem_video_toi" 25

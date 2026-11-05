@@ -61,6 +61,7 @@ struct VideoPlayerView: UIViewControllerRepresentable {
 /// Lớp hiển thị video đơn giản (không có nút), dùng cho Shorts.
 struct PlayerLayerView: UIViewRepresentable {
     let player: AVPlayer
+    var fill = false
 
     final class LayerView: UIView {
         override class var layerClass: AnyClass { AVPlayerLayer.self }
@@ -70,12 +71,14 @@ struct PlayerLayerView: UIViewRepresentable {
     func makeUIView(context: Context) -> LayerView {
         let v = LayerView()
         v.backgroundColor = .black
-        v.playerLayer.videoGravity = .resizeAspect
+        v.playerLayer.videoGravity = fill ? .resizeAspectFill : .resizeAspect
         v.playerLayer.player = player
         return v
     }
 
     func updateUIView(_ uiView: LayerView, context: Context) {
         if uiView.playerLayer.player !== player { uiView.playerLayer.player = player }
+        let gravity: AVLayerVideoGravity = fill ? .resizeAspectFill : .resizeAspect
+        if uiView.playerLayer.videoGravity != gravity { uiView.playerLayer.videoGravity = gravity }
     }
 }

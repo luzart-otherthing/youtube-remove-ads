@@ -47,7 +47,17 @@ public struct PlayerData {
     public var expiresAt: Date
     public var captions: [CaptionTrack]
     /// Các độ phân giải H.264 có sẵn (để hiện menu "Chất lượng").
+    /// "Độ phân giải" theo cách YouTube gọi = cạnh ngắn: Shorts 1080×1920 vẫn là 1080p.
     public var availableHeights: [Int]
+    /// Kích thước khung hình (của luồng hình lớn nhất), 0 nếu không biết.
+    public var videoWidth: Int
+    public var videoHeight: Int
+
+    /// Video dọc (Shorts, video quay dọc).
+    public var isPortrait: Bool { videoWidth > 0 && videoWidth < videoHeight }
+
+    /// Tỉ lệ rộng/cao, 0 nếu không biết.
+    public var aspectRatio: Double { videoHeight > 0 ? Double(videoWidth) / Double(videoHeight) : 0 }
 
     public static func parse(_ json: JSON, videoId: String, now: Date = Date()) throws -> PlayerData {
         let status = json.s("playabilityStatus", "status")
@@ -60,10 +70,15 @@ public struct PlayerData {
         let expires = sd?["expiresInSeconds"]?.int64Value ?? 21_000
 
         var heights = Set<Int>()
+        var size = (w: 0, h: 0)
         for f in sd?.a("adaptiveFormats") ?? [] {
             let mime = f["mimeType"]?.stringValue ?? ""
+            guard mime.hasPrefix("video/") else { continue }
+            let w = f["width"]?.intValue ?? 0
             let h = f["height"]?.intValue ?? 0
-            if mime.hasPrefix("video/mp4"), mime.contains("avc1"), h > 0, h <= 1080 { heights.insert(h) }
+            let quality = (w > 0 && h > 0) ? min(w, h) : h
+            if mime.hasPrefix("video/mp4"), mime.contains("avc1"), quality > 0, quality <= 1080 { heights.insert(quality) }
+            if w * h > size.w * size.h { size = (w, h) }
         }
 
         let captions: [CaptionTrack] = (json.a("captions", "playerCaptionsTracklistRenderer", "captionTracks") ?? []).compactMap { c in
@@ -91,7 +106,9 @@ public struct PlayerData {
             watchtimeTrackingURL: json.s("playbackTracking", "videostatsWatchtimeUrl", "baseUrl"),
             expiresAt: now.addingTimeInterval(TimeInterval(expires)),
             captions: captions,
-            availableHeights: heights.sorted(by: >)
+            availableHeights: heights.sorted(by: >),
+            videoWidth: size.w,
+            videoHeight: size.h
         )
     }
 }

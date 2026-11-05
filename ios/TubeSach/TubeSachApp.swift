@@ -66,6 +66,7 @@ struct RootView: View {
         }
         .dynamicTypeSize(store.settings.textSize.dynamicType)
         .preferredColorScheme(store.settings.theme.colorScheme)
+        .overlay(alignment: .bottom) { ToastView(text: model.toast) }
         .onOpenURL { url in _ = model.handle(url) }
         .onChange(of: store.settings) { _ in player.settingsChanged() }
         .task {
@@ -110,6 +111,27 @@ private struct MainToolbar: ViewModifier {
                     .accessibilityLabel("Tìm kiếm")
                 }
             }
+    }
+}
+
+/// Thông báo nhanh ở cuối màn hình (ví dụ "Không đồng bộ được…").
+struct ToastView: View {
+    let text: String?
+
+    var body: some View {
+        if let text {
+            Text(text)
+                .font(.subheadline)
+                .multilineTextAlignment(.center)
+                .foregroundColor(.white)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
+                .background(Color.black.opacity(0.85), in: RoundedRectangle(cornerRadius: 14))
+                .padding(.horizontal, 24)
+                .padding(.bottom, 110)
+                .allowsHitTesting(false)
+                .transition(.opacity)
+        }
     }
 }
 

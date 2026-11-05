@@ -260,7 +260,9 @@ public enum Parser {
 
     /// Trang tiếp theo khi cuộn xuống, hoặc kết quả khi bấm một chip.
     public static func continuation(_ json: JSON) -> FeedPage {
-        let actions = json.a("onResponseReceivedActions") ?? json.a("onResponseReceivedCommands") ?? []
+        // Trang chủ/tìm kiếm dùng "Actions"/"Commands"; video liên quan (/next) dùng "Endpoints".
+        let actions = json.a("onResponseReceivedActions") ?? json.a("onResponseReceivedCommands")
+            ?? json.a("onResponseReceivedEndpoints") ?? []
         var out: [FeedEntry] = []
         var token: String?
         var chips: [Chip] = []
@@ -428,6 +430,25 @@ public enum Parser {
             videosParams: videosParams,
             liveParams: liveParams
         )
+    }
+
+    // MARK: - Tài khoản (khi đã đăng nhập)
+
+    public static func accountInfo(_ json: JSON) -> AccountInfo? {
+        guard let h = findFirst(json, "activeAccountHeaderRenderer"), let name = textOf(h["accountName"]) else { return nil }
+        return AccountInfo(name: name, handle: textOf(h["channelHandle"]), photo: bestImage(h.a("accountPhoto", "thumbnails"), target: 88))
+    }
+
+    /// Danh sách kênh đã đăng ký của tài khoản (trang FEchannels) + token trang sau.
+    public static func accountChannels(_ json: JSON) -> (channels: [ChannelRef], continuation: String?) {
+        let channels = findAll(json, "channelRenderer").compactMap(channelRenderer)
+        let token = findAll(json, "continuationItemRenderer").lazy.compactMap { tokenOf($0) }.first
+        return (channels, token)
+    }
+
+    /// Mã cho phép đăng bình luận (chỉ có khi đã đăng nhập).
+    public static func createCommentParams(_ json: JSON) -> String? {
+        findFirst(json, "createCommentEndpoint")?.s("createCommentParams")
     }
 
     // MARK: - Shorts

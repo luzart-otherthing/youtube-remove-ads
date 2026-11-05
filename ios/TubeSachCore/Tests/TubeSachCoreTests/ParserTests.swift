@@ -65,6 +65,43 @@ final class ParserTests: XCTestCase {
         XCTAssertNotNil(w.commentsToken)
     }
 
+    func testRelatedVideosContinuation() throws {
+        // Trang xem chỉ trả ~20 video liên quan; phần còn lại nằm sau token (onResponseReceivedEndpoints).
+        let watch = Parser.watch(try fixture("next"), videoId: "x")
+        XCTAssertNotNil(watch.relatedContinuation, "Phải có token để tải thêm video liên quan")
+        let page = Parser.continuation(try fixture("next_cont"))
+        print("Tải thêm video liên quan: \(page.videos.count) video, còn tiếp=\(page.continuation != nil)")
+        XCTAssertGreaterThanOrEqual(page.videos.count, 10)
+        XCTAssertNotNil(page.continuation)
+        // Khi chưa đăng nhập YouTube không trả mã đăng bình luận.
+        XCTAssertNil(Parser.createCommentParams(try fixture("next")))
+    }
+
+    func testPortraitShortsKeepHighQuality() throws {
+        let json = try JSON.parse(#"""
+        {"playabilityStatus":{"status":"OK"},"videoDetails":{"videoId":"s","lengthSeconds":"30"},
+         "streamingData":{"hlsManifestUrl":"https://manifest.googlevideo.com/x","adaptiveFormats":[
+          {"itag":137,"mimeType":"video/mp4; codecs=\"avc1.640028\"","width":1080,"height":1920},
+          {"itag":136,"mimeType":"video/mp4; codecs=\"avc1.4d401f\"","width":720,"height":1280},
+          {"itag":135,"mimeType":"video/mp4; codecs=\"avc1.4d401e\"","width":480,"height":854},
+          {"itag":140,"mimeType":"audio/mp4; codecs=\"mp4a.40.2\""}]}}
+        """#)
+        let p = try PlayerData.parse(json, videoId: "s")
+        XCTAssertTrue(p.isPortrait)
+        XCTAssertEqual(p.availableHeights, [1080, 720, 480])
+        XCTAssertEqual(p.aspectRatio, 1080.0 / 1920.0, accuracy: 0.001)
+        let landscape = try PlayerData.parse(try fixture("player"), videoId: "dQw4w9WgXcQ")
+        XCTAssertFalse(landscape.isPortrait)
+    }
+
+    func testShortsFillOnlyWhenAspectIsClose() {
+        let phone = 1179.0 / 2556.0
+        XCTAssertTrue(Format.shouldFill(videoAspect: 9.0 / 16.0, boxAspect: phone)) // Shorts dọc: phủ kín
+        XCTAssertFalse(Format.shouldFill(videoAspect: 16.0 / 9.0, boxAspect: phone)) // video ngang: giữ khung
+        XCTAssertFalse(Format.shouldFill(videoAspect: 1, boxAspect: phone)) // video vuông
+        XCTAssertFalse(Format.shouldFill(videoAspect: 0, boxAspect: phone)) // chưa biết kích thước
+    }
+
     func testPlayerHasHlsAndCaptions() throws {
         let p = try PlayerData.parse(try fixture("player"), videoId: "dQw4w9WgXcQ")
         print("Độ phân giải: \(p.availableHeights), phụ đề: \(p.captions.map(\.name))")

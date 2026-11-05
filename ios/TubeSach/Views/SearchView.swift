@@ -52,10 +52,12 @@ final class SearchViewModel: ObservableObject {
         results.loadingMore = true
         Task {
             let page = try? await Services.youtube.searchMore(token)
-            let keys = Set(results.entries.map(\.key))
-            results.entries += (page?.entries ?? []).filter { !keys.contains($0.key) }
-            results.continuation = page?.continuation
             results.loadingMore = false
+            // Lỗi mạng hoặc đã tìm từ khác → giữ token để thử lại.
+            guard let page, results.continuation == token else { return }
+            var keys = Set(results.entries.map(\.key))
+            results.entries += page.entries.filter { keys.insert($0.key).inserted }
+            results.continuation = page.continuation
         }
     }
 }

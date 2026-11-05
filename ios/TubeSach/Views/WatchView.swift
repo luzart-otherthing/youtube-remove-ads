@@ -36,6 +36,7 @@ struct WatchView: View {
                             ForEach(relatedVideos) { v in
                                 VideoRow(video: v, progress: model.progress(of: v))
                             }
+                            relatedFooter
                         }
                         .padding()
                     }
@@ -54,6 +55,7 @@ struct WatchView: View {
                         }
                         .padding(.horizontal)
                         .padding(.vertical, 8)
+                        relatedFooter
                     }
                 }
             }
@@ -72,7 +74,7 @@ struct WatchView: View {
                 .environmentObject(player)
         }
         .sheet(isPresented: $showComments) {
-            CommentsSheet()
+            CommentsSheet(shorts: false)
                 .environmentObject(model)
                 .environmentObject(store)
                 .environmentObject(player)
@@ -82,6 +84,20 @@ struct WatchView: View {
                 .environmentObject(model)
                 .environmentObject(store)
                 .environmentObject(player)
+        }
+    }
+
+    /// Cuối danh sách video liên quan: tự tải thêm khi cuộn tới.
+    @ViewBuilder
+    private var relatedFooter: some View {
+        if model.watch?.relatedContinuation != nil {
+            HStack {
+                Spacer()
+                ProgressView()
+                Spacer()
+            }
+            .frame(height: 44)
+            .onAppear { model.loadMoreRelated() }
         }
     }
 
@@ -232,13 +248,13 @@ struct WatchView: View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
                 HStack(spacing: 0) {
-                    Button { store.toggleLike(v) } label: {
+                    Button { model.toggleLike(v) } label: {
                         Label(model.watch?.likeText ?? "Thích", systemImage: store.isLiked(v.id) ? "hand.thumbsup.fill" : "hand.thumbsup")
                             .padding(.horizontal, 14)
                             .padding(.vertical, 9)
                     }
                     Divider().frame(height: 20)
-                    Button { store.toggleDislike(v) } label: {
+                    Button { model.toggleDislike(v) } label: {
                         Label(model.dislikes.map { Format.count($0) } ?? "", systemImage: store.isDisliked(v.id) ? "hand.thumbsdown.fill" : "hand.thumbsdown")
                             .padding(.horizontal, 14)
                             .padding(.vertical, 9)
@@ -416,11 +432,17 @@ func linkified(_ text: String) -> AttributedString {
 struct CommentsSheet: View {
     @EnvironmentObject var model: AppModel
     @Environment(\.dismiss) private var dismiss
+    /// true = bình luận của Short đang mở, false = của video đang xem.
+    let shorts: Bool
+    @State private var draft = ""
+    @FocusState private var typing: Bool
+
+    private var state: CommentsState { shorts ? model.shortComments : model.comments }
 
     var body: some View {
         NavigationStack {
             List {
-                let c = model.comments
+                let c = state
                 if c.loading && c.items.isEmpty {
                     LoadingView().listRowSeparator(.hidden)
                 } else if let e = c.error, c.items.isEmpty {
@@ -436,10 +458,15 @@ struct CommentsSheet: View {
                         Spacer()
                     }
                     .listRowSeparator(.hidden)
-                    .onAppear { model.loadMoreComments() }
+                    .onAppear {
+                        if shorts { model.loadMoreShortComments() } else { model.loadMoreComments() }
+                    }
                 }
             }
             .listStyle(.plain)
+            .safeAreaInset(edge: .bottom) {
+                if model.signedIn { composer }
+            }
             .navigationTitle("Bình luận")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -448,6 +475,41 @@ struct CommentsSheet: View {
                 }
             }
         }
+    }
+}
+
+extension CommentsSheet {
+    /// Ô viết bình luận (chỉ khi đã đăng nhập tài khoản Google).
+    var composer: some View {
+        HStack(spacing: 10) {
+            Avatar(url: model.account?.photo, size: 32)
+            TextField("Viết bình luận…", text: $draft, axis: .vertical)
+                .lineLimit(1...4)
+                .focused($typing)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(Color(.secondarySystemFill), in: RoundedRectangle(cornerRadius: 18))
+            if model.commentPosting {
+                ProgressView()
+            } else {
+                Button {
+                    let text = draft
+                    Task {
+                        if await model.postComment(text, shorts: shorts) {
+                            draft = ""
+                            typing = false
+                        }
+                    }
+                } label: {
+                    Image(systemName: "paperplane.fill").font(.title3)
+                }
+                .disabled(draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                .accessibilityLabel("Gửi bình luận")
+            }
+        }
+        .padding(.horizontal)
+        .padding(.vertical, 8)
+        .background(.bar)
     }
 }
 

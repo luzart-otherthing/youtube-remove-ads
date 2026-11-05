@@ -199,6 +199,17 @@ public struct CommentItem: Hashable, Identifiable {
     public var likes: String?
     public var replies: Int
     public var pinned: Bool
+
+    public init(id: String, author: String, avatar: String?, text: String, time: String?, likes: String?, replies: Int, pinned: Bool) {
+        self.id = id
+        self.author = author
+        self.avatar = avatar
+        self.text = text
+        self.time = time
+        self.likes = likes
+        self.replies = replies
+        self.pinned = pinned
+    }
 }
 
 public struct CommentsPage {

@@ -48,6 +48,10 @@ final class PlayerController: NSObject, ObservableObject {
     var onNext: (() -> Void)?
     /// Gọi khi thoát hình trong hình và cần mở lại trang xem.
     var onRestoreUI: (() -> Void)?
+    /// Gọi một lần khi còn ~30 giây là hết video (để tải trước video tiếp theo).
+    var onNearEnd: (() -> Void)?
+    /// Gọi khi video được tự phát tiếp không phát được (riêng tư, bị chặn…).
+    var onAutoplayFailed: ((VideoItem) -> Void)?
 
     weak var viewController: AVPlayerViewController?
     private var detached = false
@@ -61,7 +65,12 @@ final class PlayerController: NSObject, ObservableObject {
     private var lastSaved: Double = 0
     private var pendingSeek: Double = 0
     private var retried = false
+    private var automatic = false
+    private var nearEndReported = false
     private var artwork: MPMediaItemArtwork?
+    /// Link phát của video tiếp theo, tải sẵn để tự phát ngay (cả khi tắt màn hình).
+    private var prefetched: PlayerData?
+    private var prefetchTask: Task<Void, Never>?
 
     init(store: LocalStore) {
         self.store = store
@@ -101,8 +110,8 @@ final class PlayerController: NSObject, ObservableObject {
 
     // MARK: Phát / dừng
 
-    /// Phát một video. `start` = vị trí bắt đầu (giây).
-    func play(_ video: VideoItem, start: Double = 0, isRetry: Bool = false) {
+    /// Phát một video. `start` = vị trí bắt đầu (giây). `automatic` = tự phát tiếp.
+    func play(_ video: VideoItem, start: Double = 0, isRetry: Bool = false, automatic: Bool = false) {
         loadTask?.cancel()
         saveCurrentPosition()
         current = video
@@ -116,6 +125,8 @@ final class PlayerController: NSObject, ObservableObject {
         duration = Double(video.durationSec)
         lastSaved = start
         retried = isRetry
+        self.automatic = automatic
+        nearEndReported = false
         artwork = nil
         avPlayer.replaceCurrentItem(with: nil)
         tracker.clear()
@@ -129,7 +140,13 @@ final class PlayerController: NSObject, ObservableObject {
 
     private func load(_ video: VideoItem, start: Double) async {
         do {
-            let pd = try await Services.youtube.player(video.id)
+            let pd: PlayerData
+            if let p = prefetched, p.videoId == video.id, p.expiresAt.timeIntervalSinceNow > 120, !retried {
+                pd = p
+            } else {
+                pd = try await Services.youtube.player(video.id)
+            }
+            prefetched = nil
             guard !Task.isCancelled, current?.id == video.id else { return }
             data = pd
             guard let hls = pd.hlsURL, let url = URL(string: hls) else {
@@ -156,6 +173,7 @@ final class PlayerController: NSObject, ObservableObject {
             tracker.begin(pd, startPosition: pendingSeek)
             loading = false
             updateNowPlaying()
+            if Services.youtube.signedIn && store.settings.personalize { useAccountTracking(video.id) }
 
             if store.settings.sponsorBlock && !pd.isLive {
                 let segs = await SponsorBlock.segments(videoId: video.id, categories: store.settings.sponsorCategories)
@@ -165,7 +183,40 @@ final class PlayerController: NSObject, ObservableObject {
             guard !Task.isCancelled, current?.id == video.id else { return }
             loading = false
             self.error = friendlyError(error)
+            // Tự phát tiếp gặp video không xem được → báo để chuyển sang video khác.
+            if automatic, (error as? InnerTubeError)?.code != -1 { onAutoplayFailed?(video) }
         }
+    }
+
+    /// Đã đăng nhập: ghi lượt xem vào lịch sử của tài khoản Google.
+    private func useAccountTracking(_ videoId: String) {
+        Task { [weak self] in
+            guard let t = try? await Services.youtube.accountTracking(videoId) else { return }
+            guard let self, self.current?.id == videoId else { return }
+            self.tracker.useAccountURLs(videoId: videoId, playback: t.playback, watchtime: t.watchtime)
+        }
+    }
+
+    /// Tải sẵn link phát của video tiếp theo.
+    func prefetch(_ video: VideoItem) {
+        guard prefetched?.videoId != video.id else { return }
+        prefetchTask?.cancel()
+        prefetchTask = Task { [weak self] in
+            guard let pd = try? await Services.youtube.player(video.id), !Task.isCancelled else { return }
+            self?.prefetched = pd
+        }
+    }
+
+    /// Link phát đã (hoặc sắp) hết hạn – ví dụ sau khi tạm dừng nhiều giờ.
+    private var linkExpired: Bool {
+        guard let d = data else { return false }
+        return d.expiresAt.timeIntervalSinceNow < 60
+    }
+
+    /// Có mạng trở lại: phát tiếp video đang báo lỗi.
+    func networkReconnected() {
+        guard current != nil, error != nil, !loading else { return }
+        retry()
     }
 
     private func observe(_ item: AVPlayerItem) {
@@ -188,7 +239,7 @@ final class PlayerController: NSObject, ObservableObject {
         case .failed:
             // Link phát hết hạn hoặc mạng chập chờn: tự lấy lại link một lần.
             if let v = current, !retried {
-                play(v, start: position, isRetry: true)
+                play(v, start: position, isRetry: true, automatic: automatic)
             } else {
                 error = "Không phát được video. Bấm “Thử lại”."
                 loading = false
@@ -202,9 +253,17 @@ final class PlayerController: NSObject, ObservableObject {
         if isPlaying {
             avPlayer.pause()
         } else {
-            if error != nil { retry(); return }
-            avPlayer.play()
+            resume()
         }
+    }
+
+    /// Phát tiếp; nếu link đã hết hạn (tạm dừng quá lâu) thì lấy link mới và phát tiếp từ chỗ cũ.
+    func resume() {
+        if error != nil || linkExpired {
+            retry()
+            return
+        }
+        avPlayer.play()
     }
 
     func pause() { avPlayer.pause() }
@@ -308,6 +367,11 @@ final class PlayerController: NSObject, ObservableObject {
 
         tracker.onProgress(position: seconds, enabled: settings.personalize)
 
+        if !nearEndReported, duration > 60, duration - seconds < 30, data?.isLive != true {
+            nearEndReported = true
+            onNearEnd?()
+        }
+
         if abs(seconds - lastSaved) >= 10 {
             lastSaved = seconds
             store.savePosition(v.id, position: seconds)
@@ -396,7 +460,7 @@ final class PlayerController: NSObject, ObservableObject {
     private func setupRemoteCommands() {
         let cc = MPRemoteCommandCenter.shared()
         cc.playCommand.addTarget { [weak self] _ in
-            DispatchQueue.main.async { self?.avPlayer.play() }
+            DispatchQueue.main.async { self?.resume() }
             return .success
         }
         cc.pauseCommand.addTarget { [weak self] _ in
