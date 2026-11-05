@@ -116,37 +116,64 @@ fun rememberPlayerUiState(): PlayerUiState {
     return state
 }
 
-/** Khung hình video (PlayerView của Media3, tắt bộ điều khiển mặc định). */
+/**
+ * Khung hình video (PlayerView của Media3, tắt bộ điều khiển mặc định).
+ *
+ * Trình phát chỉ vẽ được lên một khung hình tại một thời điểm. Khi video đang chiếu trên màn hình ô tô
+ * ([PlaybackController.carScreenActive]), khung trên điện thoại nhường lại và hiện dòng chữ thông báo;
+ * [onCar] = true là khung hình nằm trên màn hình ô tô.
+ */
 @OptIn(UnstableApi::class)
 @Composable
-fun PlayerSurface(modifier: Modifier = Modifier, zoom: Boolean = false, isPlaying: Boolean = false) {
-    AndroidView(
-        factory = { ctx ->
-            PlayerView(ctx).apply {
-                useController = false
-                setShowBuffering(PlayerView.SHOW_BUFFERING_NEVER)
-                setShutterBackgroundColor(android.graphics.Color.BLACK)
-                subtitleView?.setStyle(
-                    CaptionStyleCompat(
-                        android.graphics.Color.WHITE,
-                        0xBF000000.toInt(),
-                        android.graphics.Color.TRANSPARENT,
-                        CaptionStyleCompat.EDGE_TYPE_NONE,
-                        android.graphics.Color.WHITE,
-                        null,
-                    ),
-                )
-                player = PlaybackController.player
-            }
-        },
-        update = { view ->
-            if (view.player !== PlaybackController.player) view.player = PlaybackController.player
-            view.resizeMode = if (zoom) AspectRatioFrameLayout.RESIZE_MODE_ZOOM else AspectRatioFrameLayout.RESIZE_MODE_FIT
-            view.keepScreenOn = isPlaying
-        },
-        onRelease = { it.player = null },
-        modifier = modifier,
-    )
+fun PlayerSurface(
+    modifier: Modifier = Modifier,
+    zoom: Boolean = false,
+    isPlaying: Boolean = false,
+    onCar: Boolean = false,
+    subtitleScale: Float = 1f,
+) {
+    val carActive by PlaybackController.carScreenActive.collectAsState()
+    val attached = carActive == onCar
+    Box(modifier.background(Color.Black)) {
+        AndroidView(
+            factory = { ctx ->
+                PlayerView(ctx).apply {
+                    useController = false
+                    setShowBuffering(PlayerView.SHOW_BUFFERING_NEVER)
+                    setShutterBackgroundColor(android.graphics.Color.BLACK)
+                    subtitleView?.setStyle(
+                        CaptionStyleCompat(
+                            android.graphics.Color.WHITE,
+                            0xBF000000.toInt(),
+                            android.graphics.Color.TRANSPARENT,
+                            CaptionStyleCompat.EDGE_TYPE_NONE,
+                            android.graphics.Color.WHITE,
+                            null,
+                        ),
+                    )
+                    if (subtitleScale != 1f) {
+                        subtitleView?.setFractionalTextSize(androidx.media3.ui.SubtitleView.DEFAULT_TEXT_SIZE_FRACTION * subtitleScale)
+                    }
+                }
+            },
+            update = { view ->
+                val wanted = if (attached) PlaybackController.player else null
+                if (view.player !== wanted) view.player = wanted
+                view.resizeMode = if (zoom) AspectRatioFrameLayout.RESIZE_MODE_ZOOM else AspectRatioFrameLayout.RESIZE_MODE_FIT
+                view.keepScreenOn = isPlaying && attached
+            },
+            onRelease = { it.player = null },
+            modifier = Modifier.fillMaxSize(),
+        )
+        if (!attached && !onCar) {
+            Text(
+                "Đang chiếu trên màn hình ô tô",
+                color = Color.White,
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.align(Alignment.Center).padding(16.dp),
+            )
+        }
+    }
 }
 
 // ---------------------------------------------------------------- Thanh tua

@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android Auto: Tube Sạch có mục Media (danh sách video, nghe tiếng khi lái xe). -->
+<automotiveApp>
+    <uses name="media" />
+</automotiveApp>

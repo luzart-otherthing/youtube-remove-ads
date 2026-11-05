@@ -168,7 +168,12 @@ class MainActivity : ComponentActivity() {
 
         if (pipSupported) {
             lifecycleScope.launch {
-                combine(snapshotFlow { vm.watchExpanded }, PlaybackController.isPlaying, vm.store.settings) { _, _, _ -> Unit }
+                combine(
+                    snapshotFlow { vm.watchExpanded },
+                    PlaybackController.isPlaying,
+                    vm.store.settings,
+                    PlaybackController.carScreenActive,
+                ) { _, _, _, _ -> Unit }
                     .collect { updatePipParams() }
             }
         }
@@ -227,7 +232,9 @@ class MainActivity : ComponentActivity() {
 
     private fun shouldAutoPip(): Boolean {
         val now = PlaybackController.nowPlaying.value ?: return false
-        return pipSupported && !now.isShort && PlaybackController.isPlaying.value && vm.store.settings.value.autoPip
+        // Đang chiếu trên màn hình ô tô thì không cần cửa sổ nhỏ trên điện thoại.
+        return pipSupported && !now.isShort && PlaybackController.isPlaying.value && vm.store.settings.value.autoPip &&
+            !PlaybackController.carScreenActive.value
     }
 
     private fun enterPip() {
@@ -290,13 +297,13 @@ class MainActivity : ComponentActivity() {
 
     override fun onStart() {
         super.onStart()
-        PlaybackController.setVideoEnabled(true)
+        PlaybackController.setVideoVisible(PlaybackController.VIEWER_PHONE, true)
     }
 
     override fun onStop() {
         super.onStop()
         // Chạy nền hoặc tắt màn hình: chỉ tải tiếng cho đỡ tốn mạng và pin.
-        if (!isChangingConfigurations) PlaybackController.setVideoEnabled(false)
+        if (!isChangingConfigurations) PlaybackController.setVideoVisible(PlaybackController.VIEWER_PHONE, false)
     }
 
     override fun onConfigurationChanged(newConfig: Configuration) {

@@ -134,6 +134,8 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.9.4")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.9.4")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
+    // Chuyển coroutine ↔ ListenableFuture cho thư viện Android Auto (MediaLibraryService)
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-guava:1.10.2")
 
     // Ảnh thu nhỏ
     implementation("io.coil-kt.coil3:coil-compose:3.3.0")

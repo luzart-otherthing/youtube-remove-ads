@@ -156,6 +156,11 @@ object PlaybackController {
             .setSeekForwardIncrementMs(SEEK_MS)
             .build()
         p.addListener(playerListener)
+        if (videoViewers.isEmpty()) {
+            p.trackSelectionParameters = p.trackSelectionParameters.buildUpon()
+                .setTrackTypeDisabled(C.TRACK_TYPE_VIDEO, true)
+                .build()
+        }
         return p
     }
 
@@ -540,13 +545,35 @@ object PlaybackController {
         runCatching { appContext.stopService(Intent(appContext, PlaybackService::class.java)) }
     }
 
-    /** Khi chạy nền / tắt màn hình: chỉ tải tiếng → đỡ tốn 3G/4G và pin. */
-    fun setVideoEnabled(enabled: Boolean) {
+    // ---------------------------------------------------------------- Màn hình điện thoại / ô tô
+
+    /** Những màn hình đang hiện video (điện thoại, ô tô). Không còn ai xem → chỉ tải tiếng. */
+    private val videoViewers = HashSet<String>()
+
+    private val _carScreenActive = MutableStateFlow(false)
+    /** true khi video đang được chiếu trên màn hình ô tô (Android Auto) – điện thoại nhường khung hình. */
+    val carScreenActive: StateFlow<Boolean> = _carScreenActive.asStateFlow()
+
+    /**
+     * Một màn hình bắt đầu / thôi hiện video. Chạy nền hoặc tắt màn hình: chỉ tải tiếng → đỡ tốn 3G/4G và pin.
+     * Đếm theo từng màn hình để điện thoại tắt màn hình không làm mất hình trên ô tô (và ngược lại).
+     */
+    fun setVideoVisible(viewer: String, visible: Boolean) {
+        val changed = if (visible) videoViewers.add(viewer) else videoViewers.remove(viewer)
+        if (viewer == VIEWER_CAR) _carScreenActive.value = visible
+        if (changed) setVideoEnabled(videoViewers.isNotEmpty())
+    }
+
+    private fun setVideoEnabled(enabled: Boolean) {
         val p = _player ?: return
         p.trackSelectionParameters = p.trackSelectionParameters.buildUpon()
             .setTrackTypeDisabled(C.TRACK_TYPE_VIDEO, !enabled)
             .build()
     }
+
+    @androidx.annotation.VisibleForTesting
+    internal fun isVideoTrackEnabled(): Boolean =
+        _player?.trackSelectionParameters?.disabledTrackTypes?.contains(C.TRACK_TYPE_VIDEO) != true
 
     /** [minutes] > 0: dừng sau số phút; 0: dừng khi video kết thúc. */
     fun setSleepTimer(minutes: Int) {
@@ -644,4 +671,6 @@ object PlaybackController {
     }
 
     const val SEEK_MS = 10_000L
+    const val VIEWER_PHONE = "phone"
+    const val VIEWER_CAR = "car"
 }

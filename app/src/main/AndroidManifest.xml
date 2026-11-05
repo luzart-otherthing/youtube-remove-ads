@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
@@ -7,6 +8,8 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Tìm bằng giọng nói trên màn hình ô tô (chỉ hỏi khi bấm nút micro) -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
 
     <queries>
         <!-- Tìm kiếm bằng giọng nói -->
@@ -20,9 +23,16 @@
         </intent>
     </queries>
 
+    <!--
+        android:appCategory="game": Android Auto hiện nay chỉ cho "ứng dụng khi đỗ xe" thuộc nhóm trò chơi
+        chạy trên màn hình xe (Android 15+). Nhờ đó màn hình xem video CarActivity hiện được trên ô tô khi xe đỗ;
+        xe chạy thì Android Auto tự đóng màn hình này (vẫn nghe tiếng qua mục Media).
+    -->
     <application
         android:name=".App"
         android:allowBackup="true"
+        android:appCategory="game"
+        tools:targetApi="o"
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher"
         android:label="@string/app_name"
@@ -76,14 +86,50 @@
             </intent-filter>
         </activity>
 
+        <!-- Màn hình xem video trên ô tô (Android Auto, khi đỗ xe). Không có biểu tượng trên điện thoại. -->
+        <activity
+            android:name=".car.CarActivity"
+            android:exported="true"
+            android:label="@string/app_name"
+            android:launchMode="singleTask"
+            android:taskAffinity="${applicationId}.car"
+            android:excludeFromRecents="true"
+            android:resizeableActivity="true"
+            android:screenOrientation="unspecified"
+            android:configChanges="screenSize|smallestScreenSize|screenLayout|orientation|keyboard|keyboardHidden|navigation|uiMode|density"
+            android:theme="@style/Theme.TubeSach.Car"
+            android:windowSoftInputMode="adjustResize">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.CAR_LAUNCHER" />
+            </intent-filter>
+        </activity>
+
         <service
             android:name=".player.PlaybackService"
             android:exported="true"
             android:foregroundServiceType="mediaPlayback">
             <intent-filter>
+                <action android:name="androidx.media3.session.MediaLibraryService" />
                 <action android:name="androidx.media3.session.MediaSessionService" />
                 <action android:name="android.media.browse.MediaBrowserService" />
             </intent-filter>
         </service>
+
+        <!-- Ảnh thu nhỏ cho Android Auto (xe chỉ đọc ảnh qua content://) -->
+        <provider
+            android:name=".auto.ArtworkProvider"
+            android:authorities="${applicationId}.artwork"
+            android:exported="true"
+            tools:ignore="ExportedContentProvider" />
+
+        <!-- Khai báo với Android Auto: app có mục Media (nghe khi lái xe) -->
+        <meta-data
+            android:name="com.google.android.gms.car.application"
+            android:resource="@xml/automotive_app_desc" />
+        <!-- Biểu tượng hiện trên thanh thông báo của Android Auto -->
+        <meta-data
+            android:name="com.google.android.gms.car.notification.SmallIcon"
+            android:resource="@drawable/ic_pip_play" />
     </application>
 </manifest>

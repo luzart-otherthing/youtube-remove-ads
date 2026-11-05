@@ -42,6 +42,7 @@
 - **Return YouTube Dislike**: hiện lại số lượt không thích.
 - Ẩn Shorts; cỡ chữ lớn cho người lớn tuổi.
 - Mở link YouTube được chia sẻ từ Zalo/Facebook; tự kiểm tra bản cập nhật.
+- **Dùng trên ô tô (Android Auto)**: xem video có hình khi đỗ xe, nghe tiếng và chọn video khi đang chạy. Xem [hướng dẫn](#dùng-trên-ô-tô-android-auto).
 
 ## Đề xuất tiếng Việt mà không cần đăng nhập
 
@@ -76,6 +77,55 @@ Yêu cầu Android 6.0 trở lên; hình trong hình cần Android 8.0 trở lê
 
 Một số máy (Xiaomi, Oppo, Vivo, Samsung) có chế độ tiết kiệm pin quá mạnh, làm mất tiếng khi tắt màn hình. Khi đó vào *Cài đặt → Pin → Tube Sạch → Không giới hạn*.
 
+## Dùng trên ô tô (Android Auto)
+
+Cắm điện thoại vào xe (hoặc kết nối Android Auto không dây), Tube Sạch hiện trên màn hình xe theo **2 cách**:
+
+| | Xem video có hình | Nghe tiếng + chọn video |
+|---|---|---|
+| Khi nào | **Xe đang đỗ** | Mọi lúc, kể cả khi đang chạy |
+| Điện thoại cần | Android **15** trở lên | Mọi máy chạy được Android Auto |
+| Mở ở đâu | Danh sách ứng dụng của Android Auto → **Tube Sạch** | Danh sách ứng dụng → Tube Sạch (biểu tượng nghe nhạc) |
+| Có gì | Giống YouTube: Trang chủ, Tìm kiếm (gõ chữ, bấm micro để nói, hoặc bấm chủ đề gợi ý), Kênh đăng ký, Đã xem (xem tiếp chỗ đang dở), Thư viện (Xem sau, Đã thích, Thịnh hành, Nhạc hàng đầu). Video to, nút to, chạm 2 lần để tua ±10 giây, cột "Video tiếp theo" | Các mục Trang chủ / Kênh đăng ký / Đã xem / Thư viện có ảnh thu nhỏ, ô tìm kiếm, "Ok Google, mở *nhạc bolero* trên Tube Sạch", nút lùi/tới 10 giây và video tiếp theo |
+
+Không có quảng cáo ở cả hai cách. Lịch sử, kênh đăng ký và danh sách Xem sau dùng chung với điện thoại.
+
+| Trang chủ trên xe | Tìm kiếm | Xem video |
+|---|---|---|
+| ![](docs/screenshots/20_o_to_trang_chu.png) | ![](docs/screenshots/21_o_to_tim_kiem.png) | ![](docs/screenshots/22_o_to_xem_video.png) |
+
+**Vì sao xe chạy thì chỉ có tiếng?** Đây là quy định an toàn của Android Auto: khi xe chuyển bánh, Android Auto tự đóng màn hình xem video. Video vẫn phát tiếp bằng âm thanh, điều khiển được bằng nút trên vô lăng hoặc giọng nói; xe dừng hẳn thì mở lại Tube Sạch để xem tiếp có hình. App không lách quy định này. Người lái xe đừng xem video khi đang lái.
+
+### Cài lên xe (làm một lần trên điện thoại)
+
+Android Auto chỉ hiện ứng dụng tải từ CH Play. Tube Sạch được cài bằng file APK nên phải bật một tuỳ chọn ẩn:
+
+1. Cài Tube Sạch như bình thường (xem phần trên).
+2. Mở **Cài đặt Android Auto**: Cài đặt điện thoại → Ứng dụng → Android Auto → *Cài đặt bổ sung trong ứng dụng*. Trên một số máy có thể mở thẳng app Android Auto.
+3. Kéo xuống dưới cùng, bấm **Phiên bản** (*Version and permission info*) **10 lần** liền, rồi bấm **OK** ở câu hỏi "Cho phép cài đặt dành cho nhà phát triển?".
+4. Bấm nút **⋮** góc trên bên phải → **Cài đặt dành cho nhà phát triển** (*Developer settings*) → bật **Nguồn không xác định** (*Unknown sources*).
+5. Rút cáp ra cắm lại (hoặc tắt/bật kết nối xe). Trên màn hình xe, bấm biểu tượng ô vuông (danh sách ứng dụng) → **Tube Sạch**.
+6. Nếu chưa thấy: trong Cài đặt Android Auto → **Tuỳ chỉnh trình chạy** (*Customize launcher*) → đánh dấu Tube Sạch.
+
+Khi cập nhật Android Auto, tuỳ chọn ở bước 4 đôi khi tự tắt; làm lại bước 2–4 là được.
+
+**Vẫn không hiện?** Một số máy (Xiaomi, Oppo, Vivo…) hoặc bản Android Auto mới chặn chặt hơn. Khi đó cài lại Tube Sạch từ máy tính để Android Auto coi như cài từ CH Play (không mất dữ liệu):
+
+1. Trên điện thoại bật *Tuỳ chọn nhà phát triển → Gỡ lỗi USB*, cắm vào máy tính có [Android platform-tools](https://developer.android.com/tools/releases/platform-tools).
+2. Chạy lệnh (đổi tên file cho đúng bản đã tải):
+
+```bash
+adb install -r -i com.android.vending TubeSach-2.0.x.apk
+```
+
+**Ghi chú**
+- Muốn xem có hình trên xe cần điện thoại Android 15 trở lên: Android Auto chỉ cho phép ứng dụng chạy trên màn hình xe khi đỗ từ Android 15. Máy cũ hơn vẫn dùng được cách "nghe tiếng + chọn video".
+- Để Android Auto cho chạy khi đỗ xe, Tube Sạch tự khai là ứng dụng thuộc nhóm "trò chơi" (đây là nhóm duy nhất Android Auto cho phép). Vì vậy một số máy (ví dụ Samsung *Game Launcher*) có thể xếp Tube Sạch vào mục Trò chơi. Không ảnh hưởng gì.
+- Bấm nút micro trên màn hình xe lần đầu, điện thoại sẽ hỏi quyền micro: chấp nhận trên **điện thoại**.
+- Màn hình xe luôn dùng giao diện tối. Cỡ chữ theo *Cài đặt → Cỡ chữ* trong app.
+
+**Đã tìm hiểu:** [tài liệu Android for Cars](https://developer.android.com/training/cars/parked/auto) (ứng dụng khi đỗ xe, mục Media), [Fermata Auto](https://github.com/AndreyPavlenko/Fermata) và [AndroidAutoMaker](https://github.com/malebuffy/AndroidAutoMaker). Hai dự án này chiếu video kể cả khi xe chạy bằng cách giả làm ứng dụng bản đồ hoặc chiếu lại cả màn hình điện thoại, phải cài qua máy tính và có thể hỏng sau mỗi lần Android Auto cập nhật. Tube Sạch chỉ dùng hai cách chính thức ở trên.
+
 ## Khi YouTube thay đổi làm app lỗi
 
 - Đường phát chính (visionOS) lỗi thì app **tự chuyển sang NewPipeExtractor**.
@@ -88,7 +138,7 @@ Một số máy (Xiaomi, Oppo, Vivo, Samsung) có chế độ tiết kiệm pin 
 ./gradlew :app:assembleRelease                                     # APK ở app/build/outputs/apk/release/
 ./gradlew :app:testDebugUnitTest                                   # test logic, bộ đọc, mở app
 ./gradlew :app:testDebugUnitTest -Donline=true --tests '*Online*'  # gọi YouTube thật: ExoPlayer đọc hình + tiếng + phụ đề
-./gradlew :app:testDebugUnitTest -Dscreenshots=true --tests '*ScreenshotTest*'  # chụp lại ảnh màn hình
+./gradlew :app:testDebugUnitTest -Dscreenshots=true --tests '*ScreenshotTest*'  # chụp lại ảnh màn hình (cả màn hình ô tô)
 ```
 
 APK được ký bằng khoá cố định `app/signing/tubesach.jks` để bản cập nhật cài đè được. Nếu repo để công khai, nên tạo khoá riêng: tạo bằng `keytool`, đổi sang base64, rồi lưu vào các secret `SIGNING_KEYSTORE_BASE64`, `SIGNING_STORE_PASSWORD`, `SIGNING_KEY_ALIAS`, `SIGNING_KEY_PASSWORD`. Làm việc này **trước khi** cài cho mọi người.
@@ -101,7 +151,10 @@ app/src/main/java/com/luzart/tubesach/
 │                   DirectStreams.kt (link phát + DASH + phụ đề), WatchTracker.kt (báo lượt xem ẩn danh)
 ├── sponsor/        SponsorBlock + Return YouTube Dislike
 ├── data/           YouTubeRepository (gộp nguồn + dự phòng NewPipe), LocalStore (lịch sử, kênh đăng ký, cài đặt)
-├── player/         PlaybackController (chất lượng, tốc độ, lặp, phụ đề, SponsorBlock, hẹn giờ), PlaybackService (phát nền)
+├── player/         PlaybackController (chất lượng, tốc độ, lặp, phụ đề, SponsorBlock, hẹn giờ),
+│                   PlaybackService (phát nền + thư viện cho Android Auto), SessionPlayer (nhận lệnh phát từ xe)
+├── auto/           CarLibrary (các mục trên màn hình xe, tìm kiếm, giọng nói), ArtworkProvider (ảnh thu nhỏ cho xe)
+├── car/            CarActivity + CarScreens (giao diện xem video trên màn hình ô tô khi đỗ xe)
 └── ui/             TubeApp (khung chính), screens/ (Trang chủ, Shorts, Kênh đăng ký, Bạn, Tìm kiếm, Kênh, Xem, Cài đặt),
                     player/ (lớp điều khiển, thanh tua, bảng ⚙, trình phát mini), theme/ (màu sáng/tối)
 ```
