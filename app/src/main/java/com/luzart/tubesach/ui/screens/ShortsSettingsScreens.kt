@@ -1,5 +1,9 @@
 package com.luzart.tubesach.ui.screens
 
+import android.app.Activity
+import android.content.Intent
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -59,6 +63,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import com.luzart.tubesach.BuildConfig
+import com.luzart.tubesach.account.LoginActivity
 import com.luzart.tubesach.data.QualityMode
 import com.luzart.tubesach.data.ThemeMode
 import com.luzart.tubesach.data.VideoItem
@@ -112,6 +117,8 @@ private fun ShortPage(vm: AppViewModel, id: String, current: Boolean) {
     val info = now?.takeIf { it.video.id == id }
     val ui = rememberPlayerUiState()
     val video = info?.video ?: VideoItem.ofId(id)
+    var showComments by remember { mutableStateOf(false) }
+    if (showComments) CommentsSheet(vm, onDismiss = { showComments = false })
 
     Box(
         Modifier
@@ -148,9 +155,12 @@ private fun ShortPage(vm: AppViewModel, id: String, current: Boolean) {
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            ShortAction(if (liked.any { it.id == id }) Icons.Filled.ThumbUp else Icons.Outlined.ThumbUp, info?.watch?.likeText ?: "Thích") { vm.store.toggleLike(video) }
-            ShortAction(if (id in disliked) Icons.Filled.ThumbDown else Icons.Outlined.ThumbDown, "Không thích") { vm.store.toggleDislike(id) }
-            ShortAction(Icons.AutoMirrored.Outlined.Comment, info?.watch?.commentCountText ?: "Bình luận") { }
+            ShortAction(if (liked.any { it.id == id }) Icons.Filled.ThumbUp else Icons.Outlined.ThumbUp, info?.watch?.likeText ?: "Thích") { vm.toggleLike(video) }
+            ShortAction(if (id in disliked) Icons.Filled.ThumbDown else Icons.Outlined.ThumbDown, "Không thích") { vm.toggleDislike(id) }
+            ShortAction(Icons.AutoMirrored.Outlined.Comment, info?.watch?.commentCountText ?: "Bình luận") {
+                vm.loadCommentsPreview(video)
+                showComments = true
+            }
             ShortAction(Icons.Outlined.Share, "Chia sẻ") { shareVideo(context, video) }
         }
         // Thông tin kênh + tiêu đề
@@ -180,7 +190,7 @@ private fun ShortPage(vm: AppViewModel, id: String, current: Boolean) {
                             .height(30.dp)
                             .clip(RoundedCornerShape(15.dp))
                             .background(if (subscribed) Color(0x4DFFFFFF) else Color.White)
-                            .clickable { vm.store.toggleSubscription(channel) }
+                            .clickable { vm.toggleSubscription(channel) }
                             .padding(horizontal = 12.dp),
                         contentAlignment = Alignment.Center,
                     ) {
@@ -225,6 +235,10 @@ private fun ShortAction(icon: ImageVector, label: String, onClick: () -> Unit) {
 
 @Composable
 fun SettingsScreen(vm: AppViewModel, pipSupported: Boolean) {
+    val context = LocalContext.current
+    val loginLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
+        if (r.resultCode == Activity.RESULT_OK) vm.onLoginFinished()
+    }
     val yt = LocalYt.current
     val s by vm.store.settings.collectAsState()
     var dialog by remember { mutableStateOf<String?>(null) }
@@ -284,14 +298,19 @@ fun SettingsScreen(vm: AppViewModel, pipSupported: Boolean) {
             YtDivider()
 
             Section("Quyền riêng tư")
+            val signedIn by vm.account.info.collectAsState()
             ToggleRow(
                 "Đề xuất theo video đã xem",
-                "Cho YouTube biết bạn đã xem gì (ẩn danh, không cần tài khoản) để trang chủ có đề xuất tiếng Việt hợp với bạn.",
+                if (signedIn != null) "Ghi video đã xem vào lịch sử xem của tài khoản Google để trang chủ đề xuất theo tài khoản."
+                else "Cho YouTube biết bạn đã xem gì (ẩn danh, không cần tài khoản) để trang chủ có đề xuất tiếng Việt hợp với bạn.",
                 s.personalize,
             ) { v -> vm.store.updateSettings { it.copy(personalize = v) } }
             ActionRow("Xoá dữ liệu đề xuất", "Tạo mã khách ẩn danh mới, trang chủ sẽ trống lại như lúc đầu") { dialog = "reset" }
             ActionRow("Xoá nhật ký xem", null) { dialog = "history" }
             ActionRow("Xoá nhật ký tìm kiếm", null) { vm.store.clearRecentSearches() }
+            YtDivider()
+
+            AccountSection(vm, onLogin = { dialog = "login" }, onLogout = { dialog = "logout" })
             YtDivider()
 
             Section("Giới thiệu")
@@ -322,6 +341,27 @@ fun SettingsScreen(vm: AppViewModel, pipSupported: Boolean) {
             }
         }
         "reset" -> ConfirmDialog("Xoá dữ liệu đề xuất?", "Trang chủ sẽ trống cho đến khi bạn xem thêm video.", { dialog = null }) { vm.resetRecommendations() }
+        "login" -> WarnDialog(
+            "Đăng nhập tài khoản Google?",
+            "Tính năng thử nghiệm, KHÔNG khuyến khích. App vẫn dùng tốt khi không đăng nhập.\n\n" +
+                "• Đây không phải app chính thức của YouTube: dùng tài khoản trong app bên ngoài là trái điều khoản của YouTube, " +
+                "tài khoản có thể bị Google hạn chế hoặc khoá.\n" +
+                "• Nên dùng một tài khoản Google phụ, đừng dùng tài khoản chính hay tài khoản có nhiều dữ liệu quan trọng.\n" +
+                "• Bạn nhập mật khẩu trên trang của Google; app không thấy mật khẩu, nhưng sẽ giữ phiên đăng nhập trên máy này " +
+                "(ai cầm máy cũng dùng được tài khoản trong app).\n" +
+                "• Google có thể không cho đăng nhập trong app (\"Trình duyệt này không an toàn\").\n\n" +
+                "Khi đăng nhập: trang chủ theo tài khoản, đồng bộ kênh đăng ký, lượt thích, lịch sử xem và viết được bình luận.",
+            confirm = "VẪN ĐĂNG NHẬP",
+            onDismiss = { dialog = null },
+        ) {
+            loginLauncher.launch(Intent(context, LoginActivity::class.java))
+        }
+        "logout" -> WarnDialog(
+            "Đăng xuất?",
+            "App sẽ quay về chế độ không đăng nhập. Video đã xem, đã thích và kênh đăng ký trên máy vẫn được giữ.",
+            confirm = "ĐĂNG XUẤT",
+            onDismiss = { dialog = null },
+        ) { vm.logout() }
         "history" -> ConfirmDialog("Xoá nhật ký xem?", "Danh sách video đã xem trên máy này sẽ bị xoá.", { dialog = null }) { vm.store.clearHistory() }
     }
 }
@@ -404,6 +444,39 @@ private fun ChoiceDialog(title: String, options: List<String>, selected: Int, on
         },
         confirmButton = { TextButton(onClick = onDismiss) { Text("HUỶ") } },
     )
+}
+
+@Composable
+private fun WarnDialog(title: String, text: String, confirm: String, onDismiss: () -> Unit, onConfirm: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = { Text(text, modifier = Modifier.verticalScroll(rememberScrollState())) },
+        confirmButton = { TextButton(onClick = { onConfirm(); onDismiss() }) { Text(confirm) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("HUỶ") } },
+    )
+}
+
+/** Tài khoản Google – để cuối trang cài đặt, mặc định không đăng nhập. */
+@Composable
+private fun AccountSection(vm: AppViewModel, onLogin: () -> Unit, onLogout: () -> Unit) {
+    val yt = LocalYt.current
+    val info by vm.account.info.collectAsState()
+    Section("Tài khoản Google (thử nghiệm)")
+    val me = info
+    if (me == null) {
+        ActionRow("Đăng nhập (không khuyến khích)", "Không cần thiết để xem video. Đọc cảnh báo trước khi đăng nhập.", onLogin)
+    } else {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Avatar(me.photo, 40.dp)
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text(me.name, color = yt.text, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(me.handle ?: "Đã đăng nhập", color = yt.textSecondary, style = MaterialTheme.typography.bodySmall)
+            }
+        }
+        ActionRow("Đăng xuất", "Xoá phiên đăng nhập khỏi máy này", onLogout)
+    }
 }
 
 @Composable

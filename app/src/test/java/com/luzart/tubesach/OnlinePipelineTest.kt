@@ -88,7 +88,7 @@ class OnlinePipelineTest {
             MediaItem.SubtitleConfiguration.Builder(Uri.parse(it.vttUrl()))
                 .setMimeType(MimeTypes.TEXT_VTT).setLanguage(it.languageCode).setSelectionFlags(C.SELECTION_FLAG_DEFAULT).build()
         }
-        val source = StreamSourceFactory(app).buildDirect(data, MediaMetadata.Builder().setTitle(data.title).build(), sub)
+        val source = StreamSourceFactory(app, app.http).buildDirect(data, MediaMetadata.Builder().setTitle(data.title).build(), sub)
         val tracks = loadTracks(source, textOn = sub != null)
         val video = tracks.groups.first { it.type == C.TRACK_TYPE_VIDEO }
         assertTrue("Phải có nhiều độ phân giải để tự đổi chất lượng", video.length >= 3)
@@ -99,7 +99,7 @@ class OnlinePipelineTest {
     @Test
     fun newPipeFallbackPath() {
         val info = runBlocking { YouTubeRepository.streamInfo("https://www.youtube.com/watch?v=dQw4w9WgXcQ") }
-        val source = StreamSourceFactory(app).build(info, 720, MediaMetadata.Builder().build())
+        val source = StreamSourceFactory(app, app.http).build(info, 720, MediaMetadata.Builder().build())
         val tracks = loadTracks(source)
         assertTrue(tracks.groups.any { it.type == C.TRACK_TYPE_VIDEO })
     }

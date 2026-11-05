@@ -6,6 +6,8 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
+import com.luzart.tubesach.account.YouTubeAccount
+import org.json.JSONArray
 import org.json.JSONObject
 import org.schabi.newpipe.extractor.services.youtube.YoutubeParsingHelper
 import java.io.IOException
@@ -24,6 +26,8 @@ class InnerTube(
     private val http: OkHttpClient,
     private val loadVisitor: () -> String?,
     private val saveVisitor: (String) -> Unit,
+    /** Tài khoản Google (thử nghiệm). null hoặc chưa đăng nhập = ẩn danh như trước. */
+    private val account: YouTubeAccount? = null,
 ) {
     @Volatile
     private var visitor: String? = null
@@ -70,6 +74,7 @@ class InnerTube(
         url: String,
         body: JSONObject,
         headers: Map<String, String>,
+        client: OkHttpClient = http,
     ): JSONObject = withContext(Dispatchers.IO) {
         val request = Request.Builder()
             .url(url)
@@ -78,7 +83,7 @@ class InnerTube(
             .header("Accept-Language", "vi-VN,vi;q=0.9")
             .apply { visitorData?.takeIf { it.isNotBlank() }?.let { header("X-Goog-Visitor-Id", it) } }
             .build()
-        http.newCall(request).execute().use { response ->
+        client.newCall(request).execute().use { response ->
             val text = response.body?.string().orEmpty()
             if (!response.isSuccessful) throw InnerTubeException("YouTube trả lỗi HTTP ${response.code}", response.code)
             val json = JSONObject(text)
@@ -95,6 +100,8 @@ class InnerTube(
     private suspend fun web(endpoint: String, body: JSONObject): JSONObject = withContext(Dispatchers.IO) {
         // webVersion có thể cần gọi mạng ở lần đầu → luôn chuẩn bị yêu cầu ở luồng nền.
         body.put("context", webContext())
+        // Đã đăng nhập → gửi kèm cookie + SAPISIDHASH giống trang web YouTube.
+        val auth = account?.authHeaders()
         post(
             "https://www.youtube.com/youtubei/v1/$endpoint?prettyPrint=false",
             body,
@@ -104,9 +111,43 @@ class InnerTube(
                 "X-YouTube-Client-Version" to webVersion,
                 "Origin" to "https://www.youtube.com",
                 "Referer" to "https://www.youtube.com/",
-            ),
+            ) + auth.orEmpty(),
+            client = if (auth != null) account!!.http else http,
         )
     }
+
+    /** Đang dùng tài khoản Google (có cookie hợp lệ). */
+    val signedIn: Boolean get() = account?.authHeaders() != null
+
+    // ------------------------------------------------------------ Chỉ khi đã đăng nhập
+
+    suspend fun accountMenu(): JSONObject = web("account/account_menu", JSONObject())
+
+    suspend fun subscribe(channelId: String, subscribe: Boolean): JSONObject =
+        web(
+            if (subscribe) "subscription/subscribe" else "subscription/unsubscribe",
+            JSONObject().put("channelIds", JSONArray().put(channelId)),
+        )
+
+    /** [action]: "like", "dislike" hoặc "removelike". */
+    suspend fun rate(videoId: String, action: String): JSONObject =
+        web("like/$action", JSONObject().put("target", JSONObject().put("videoId", videoId)))
+
+    suspend fun createComment(createCommentParams: String, text: String): JSONObject =
+        web(
+            "comment/create_comment",
+            JSONObject().put("createCommentParams", createCommentParams).put("commentText", text),
+        )
+
+    /**
+     * /player của máy khách WEB (có đăng nhập) – chỉ để lấy link thống kê lượt xem, nhờ đó video
+     * đã xem được ghi vào "Video đã xem" của tài khoản (và YouTube đề xuất theo đó).
+     */
+    suspend fun webPlayer(videoId: String): JSONObject =
+        web(
+            "player",
+            JSONObject().put("videoId", videoId).put("contentCheckOk", true).put("racyCheckOk", true),
+        )
 
     /** Đảm bảo đã có mã khách ẩn danh trước khi gọi các API khác. */
     suspend fun ensureVisitor() {
@@ -173,14 +214,16 @@ class InnerTube(
     }
 
     /** Gửi một "ping" thống kê lượt xem (để YouTube biết khách ẩn danh này đã xem video nào). */
-    suspend fun ping(url: String) = withContext(Dispatchers.IO) {
+    suspend fun ping(url: String, authed: Boolean = false) = withContext(Dispatchers.IO) {
         runCatching {
+            val auth = if (authed) account?.authHeaders() else null
             val request = Request.Builder()
                 .url(url)
-                .header("User-Agent", visionUserAgent)
+                .header("User-Agent", if (auth != null) WEB_UA else visionUserAgent)
                 .apply { visitorData?.takeIf { it.isNotBlank() }?.let { header("X-Goog-Visitor-Id", it) } }
+                .apply { auth?.forEach { (k, v) -> header(k, v) } }
                 .build()
-            http.newCall(request).execute().close()
+            (if (auth != null) account!!.http else http).newCall(request).execute().close()
         }
     }
 

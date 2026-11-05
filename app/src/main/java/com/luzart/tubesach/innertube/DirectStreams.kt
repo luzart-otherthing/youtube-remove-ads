@@ -1,5 +1,6 @@
 package com.luzart.tubesach.innertube
 
+import android.os.SystemClock
 import org.json.JSONObject
 
 /** Một định dạng (luồng hình hoặc tiếng) trong streamingData của YouTube. */
@@ -23,6 +24,14 @@ data class StreamFormat(
 ) {
     val isVideo get() = mimeType.startsWith("video/")
     val isAudio get() = mimeType.startsWith("audio/")
+
+    /**
+     * "Độ phân giải" theo cách YouTube gọi (720p, 1080p…) = cạnh ngắn của khung hình.
+     * Video dọc (Shorts) 1080×1920 vẫn là "1080p", không phải 1920p.
+     */
+    val quality: Int get() = if (width > 0 && height > 0) minOf(width, height) else height
+
+    val isPortrait: Boolean get() = width in 1 until height
 }
 
 /** Một phụ đề có sẵn của video. */
@@ -53,13 +62,17 @@ data class PlayerData(
     val hlsUrl: String?,
     val playbackTrackingUrl: String?,
     val watchtimeTrackingUrl: String?,
+    /** Thời điểm link hết hạn, theo [SystemClock.elapsedRealtime] (không bị lệch khi người dùng chỉnh giờ). */
     val expiresAtMs: Long,
     val captions: List<CaptionTrack> = emptyList(),
 ) {
     /** Các độ phân giải có thể chọn trong menu "Chất lượng". */
     val availableHeights: List<Int>
-        get() = formats.filter { it.isVideo && it.mimeType == "video/mp4" && it.codecs.startsWith("avc1") && it.height in 1..1080 }
-            .map { it.height }.distinct().sortedDescending()
+        get() = formats.filter { it.isVideo && it.mimeType == "video/mp4" && it.codecs.startsWith("avc1") && it.quality in 1..1080 }
+            .map { it.quality }.distinct().sortedDescending()
+
+    /** Video dọc (Shorts, video quay dọc). */
+    val isPortrait: Boolean get() = formats.firstOrNull { it.isVideo && it.width > 0 }?.isPortrait == true
 
     /**
      * Dựng manifest DASH gồm nhiều độ phân giải H.264 (≤ [maxHeight]) và một luồng tiếng AAC.
@@ -67,9 +80,9 @@ data class PlayerData(
      */
     fun dashManifest(maxHeight: Int = 1080): String? {
         val video = formats
-            .filter { it.isVideo && it.mimeType == "video/mp4" && it.codecs.startsWith("avc1") && it.height in 1..maxHeight }
+            .filter { it.isVideo && it.mimeType == "video/mp4" && it.codecs.startsWith("avc1") && it.quality in 1..maxHeight }
             .filter { it.indexEnd > 0 && it.initEnd > 0 }
-            .distinctBy { it.height to it.fps }
+            .distinctBy { it.quality to it.fps }
         val audioAll = formats.filter { it.isAudio && it.mimeType == "audio/mp4" && it.indexEnd > 0 && it.initEnd > 0 }
         val audio = audioAll.filter { it.audioIsDefault || it.audioTrackId == null }.ifEmpty { audioAll }
             .sortedByDescending { it.bitrate }
@@ -164,7 +177,7 @@ data class PlayerData(
                 hlsUrl = sd?.s("hlsManifestUrl"),
                 playbackTrackingUrl = json.s("playbackTracking", "videostatsPlaybackUrl", "baseUrl"),
                 watchtimeTrackingUrl = json.s("playbackTracking", "videostatsWatchtimeUrl", "baseUrl"),
-                expiresAtMs = System.currentTimeMillis() + expires * 1000,
+                expiresAtMs = SystemClock.elapsedRealtime() + expires * 1000,
                 captions = captions,
             )
         }

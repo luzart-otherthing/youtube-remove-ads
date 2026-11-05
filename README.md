@@ -49,6 +49,14 @@ Giống YouTube thật: **lần đầu mở, trang chủ trống** ("Thử tìm 
 
 Cách làm: giống trình duyệt chưa đăng nhập. App giữ một **mã khách ẩn danh** (visitor ID) và báo cho YouTube biết đã xem video nào. YouTube dựa vào đó để đề xuất. Không có tài khoản Google, không có tên hay email nào. Có thể tắt hoặc xoá trong *Cài đặt → Quyền riêng tư*.
 
+### Đăng nhập tài khoản Google (thử nghiệm, không khuyến khích)
+
+Mặc định app **không cần và không đề nghị đăng nhập**. Ở cuối *Cài đặt* có mục *Tài khoản Google (thử nghiệm)* cho ai thật sự cần:
+- Đăng nhập trên trang của Google trong app (app không thấy mật khẩu). App dùng lại cookie của youtube.com như một trình duyệt đã đăng nhập.
+- Khi đăng nhập: trang chủ và tab *Kênh đăng ký* theo tài khoản, đồng bộ đăng ký kênh / thích / không thích, ghi lịch sử xem, **viết bình luận**.
+- Link phát video vẫn lấy ẩn danh như trước. Cookie không được sao lưu lên Google Drive. *Đăng xuất* xoá sạch phiên đăng nhập.
+- Rủi ro: dùng tài khoản trong app không chính thức là trái điều khoản YouTube, tài khoản có thể bị hạn chế hoặc khoá → **nên dùng tài khoản phụ**. Google cũng có thể chặn đăng nhập trong app ("Trình duyệt này không an toàn").
+
 ## Đã tìm hiểu những mã nguồn nào?
 
 | Dự án | Sao GitHub | Cách lấy dữ liệu | Nhận xét |
