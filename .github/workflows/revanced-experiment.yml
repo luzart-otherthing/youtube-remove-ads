@@ -49,6 +49,7 @@ jobs:
           name: revanced-apks
           path: |
             apks/*.apk
+            apks/*.apkm
             apks/*.txt
             apks/*.log
           retention-days: 7

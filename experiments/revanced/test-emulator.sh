@@ -16,7 +16,22 @@ SUMMARY="$RES/tom-tat.md"
 sdk=${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}
 AAPT2=$(ls -d "$sdk"/build-tools/*/aapt2 2>/dev/null | sort -V | tail -1)
 
-pkg_of() { "$AAPT2" dump packagename "$1" 2>/dev/null; }
+pkg_of() { # .apk hoặc .apkm (gói nhiều phần của APKMirror)
+  case "$1" in
+    *.apkm) local d; d=$(mktemp -d); unzip -q -o "$1" base.apk -d "$d"; "$AAPT2" dump packagename "$d/base.apk" 2>/dev/null ;;
+    *) "$AAPT2" dump packagename "$1" 2>/dev/null ;;
+  esac
+}
+
+install_apk() { # .apkm → cài từng phần (giữ nguyên chữ ký Google)
+  case "$1" in
+    *.apkm)
+      local d; d=$(mktemp -d)
+      unzip -q -o "$1" '*.apk' -d "$d"
+      adb install-multiple -r -d -g "$d"/*.apk 2>&1 | tail -2 | tr '\n' ' ' ;;
+    *) adb install -r -d -g "$1" 2>&1 | tail -2 | tr '\n' ' ' ;;
+  esac
+}
 
 adb wait-for-device
 # Tắt Play Protect quét APK cài qua adb (nếu không, giả lập có thể hỏi/chặn).
@@ -30,6 +45,7 @@ adb shell settings put global animator_duration_scale 0 || true
   echo "# Kết quả chạy thử trên giả lập"
   echo
   echo "- Android: $(adb shell getprop ro.build.version.release | tr -d '\r') (API $(adb shell getprop ro.build.version.sdk | tr -d '\r'))"
+  echo "- Kiến trúc CPU giả lập: $(adb shell getprop ro.product.cpu.abilist | tr -d '\r')"
   echo "- Google Play Services: $(adb shell dumpsys package com.google.android.gms | grep -m1 versionName | tr -d '\r' | xargs)"
   echo "- microG/GmsCore có trên máy không: $(adb shell pm list packages | grep -iE 'app.revanced.android.gms|org.microg|mgoogle' | tr -d '\r' | xargs || true)"
   echo "- YouTube cài sẵn: $(adb shell pm list packages | grep -i youtube | tr -d '\r' | xargs)"
@@ -53,7 +69,7 @@ run_case() { # $1 = tên, $2 = file apk
   adb logcat -c || true
 
   local install
-  install=$(adb install -r -d -g "$apk" 2>&1 | tail -2 | tr '\n' ' ')
+  install=$(install_apk "$apk")
   echo "Cài: $install"
 
   # Mở thẳng một video trong đúng app này.
@@ -112,7 +128,8 @@ run_case() { # $1 = tên, $2 = file apk
   echo "::endgroup::"
 }
 
-[ -f "$APKS/youtube-goc.apk" ] && run_case "1-youtube-goc" "$APKS/youtube-goc.apk"
+if [ -f "$APKS/youtube-goc.apk" ]; then run_case "1-youtube-goc" "$APKS/youtube-goc.apk"
+elif [ -f "$APKS/youtube-goc.apkm" ]; then run_case "1-youtube-goc" "$APKS/youtube-goc.apkm"; fi
 [ -f "$APKS/youtube-revanced-khong-microg.apk" ] && run_case "2-revanced-khong-microg" "$APKS/youtube-revanced-khong-microg.apk"
 [ -f "$APKS/youtube-revanced-chuan.apk" ] && run_case "3-revanced-chuan-can-microg" "$APKS/youtube-revanced-chuan.apk"
 

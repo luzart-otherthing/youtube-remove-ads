@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Vá YouTube bằng ReVanced (bản chính thức) thành 2 APK để thử, KHÔNG cần microG/GmsCore:
 #
-#   youtube-goc.apk                 YouTube gốc của Google (đối chứng, có quảng cáo)
+#   youtube-goc.apk(m)              YouTube gốc của Google, tải từ APKMirror, đã kiểm tra chữ ký (đối chứng)
 #   youtube-revanced-khong-microg   ReVanced, tên gói riêng (app.revanced.android.youtube),
 #                                   trỏ thẳng vào Google Play Services thật của máy
 #                                   (tuỳ chọn gmsCoreVendorGroupId=com.google) → không cần microG
@@ -9,7 +9,7 @@
 #                                   Dùng để đối chứng: máy không có microG thì bản này làm gì.
 #
 # Cách dùng:  bash experiments/revanced/build.sh <thư-mục-ra>
-# Cần: java 17+, curl, gh (đã đăng nhập hoặc có GH_TOKEN), apksigner (Android SDK build-tools).
+# Cần: java 17+, curl, python3 + beautifulsoup4, gh (có GH_TOKEN), apksigner (Android SDK build-tools).
 set -euo pipefail
 
 OUT=${1:-out}
@@ -17,9 +17,8 @@ mkdir -p "$OUT"
 OUT=$(cd "$OUT" && pwd)
 WORK=$(mktemp -d)
 
-# Phiên bản YouTube mà bộ vá ReVanced hỗ trợ. Bản 20.40.45 có sẵn trên archive.org.
+# Phiên bản YouTube mới nhất mà bộ vá ReVanced v6.2.1 hỗ trợ.
 YT_VERSION=${YT_VERSION:-20.40.45}
-YT_ITEM="com.google.android.youtube-${YT_VERSION}-all.apk"
 # Chứng chỉ ký của Google cho YouTube (SHA-256). APK không khớp chứng chỉ này sẽ bị từ chối.
 YT_CERT_SHA256="3d7a1223019aa39d9ea0e3436ab7c0896bfb4fb679f4de5fe7c23f326c8f994a"
 CLI_TAG=${CLI_TAG:-v6.0.0}
@@ -47,15 +46,42 @@ curl -fsSL "$PATCHES_API/patches.rvp" -o "$WORK/patches.rvp"
 echo "CLI: $(basename "$CLI")" >> "$OUT/phien-ban.txt"
 echo "YouTube: $YT_VERSION" >> "$OUT/phien-ban.txt"
 
-log "3. Tải YouTube $YT_VERSION (archive.org) và kiểm tra chữ ký Google"
-curl -fL --retry 3 -o "$WORK/youtube.apk" "https://archive.org/download/$YT_ITEM/$YT_ITEM"
-CERT=$("$APKSIGNER" verify --print-certs "$WORK/youtube.apk" | grep -m1 'certificate SHA-256 digest' | awk '{print $NF}')
-echo "Chứng chỉ: $CERT"
-if [ "$CERT" != "$YT_CERT_SHA256" ]; then
-  echo "APK YouTube KHÔNG do Google ký → dừng lại."
-  exit 1
-fi
-cp "$WORK/youtube.apk" "$OUT/youtube-goc.apk"
+verify_google() { # APK phải mang đúng chứng chỉ của Google, nếu không thì có thể đã bị sửa.
+  local cert
+  cert=$("$APKSIGNER" verify --print-certs "$1" 2>/dev/null | grep -m1 'certificate SHA-256 digest' | awk '{print $NF}')
+  echo "Chứng chỉ $(basename "$1"): ${cert:-không đọc được}"
+  [ "$cert" = "$YT_CERT_SHA256" ]
+}
+
+# Lưu ý: các file "-all.apk" trên archive.org là bản người khác gộp lại và TỰ KÝ (không còn chữ ký Google)
+# → không dùng. Lấy bản gốc trên APKMirror rồi tự kiểm tra chữ ký.
+log "3. Tải YouTube $YT_VERSION gốc từ APKMirror và kiểm tra chữ ký Google"
+python3 -c 'import bs4' 2>/dev/null \
+  || pip install --quiet --break-system-packages beautifulsoup4 2>/dev/null \
+  || sudo apt-get install -y -qq python3-bs4
+HERE=$(cd "$(dirname "$0")" && pwd)
+# Giả lập trên GitHub Actions là x86_64 → ưu tiên bản x86_64, rồi tới arm64-v8a (điện thoại thật).
+DL=$(python3 "$HERE/tai_apkmirror.py" "$YT_VERSION" "$WORK/dl" ${YT_ARCHES:-x86_64 arm64-v8a})
+echo "Đã tải: $DL"
+case "$DL" in
+  *.apk)
+    verify_google "$DL" || { echo "APK YouTube KHÔNG do Google ký → dừng lại."; exit 1; }
+    cp "$DL" "$WORK/youtube.apk"
+    cp "$DL" "$OUT/youtube-goc.apk"
+    ;;
+  *.apkm)
+    # Gói nhiều phần: kiểm tra chữ ký TỪNG phần, rồi gộp lại để vá.
+    mkdir -p "$WORK/splits"
+    unzip -q -o "$DL" '*.apk' -d "$WORK/splits"
+    for f in "$WORK"/splits/*.apk; do
+      verify_google "$f" || { echo "Phần $(basename "$f") KHÔNG do Google ký → dừng lại."; exit 1; }
+    done
+    gh release download -R REAndroid/APKEditor -p 'APKEditor-*.jar' -D "$WORK" --clobber
+    java -jar "$(ls "$WORK"/APKEditor-*.jar | head -1)" m -i "$DL" -o "$WORK/youtube.apk" -f
+    cp "$DL" "$OUT/youtube-goc.apkm"
+    ;;
+  *) echo "Không tải được YouTube"; exit 1 ;;
+esac
 
 log "4. Danh sách bản vá cho YouTube (ghi vào danh-sach-ban-va.txt)"
 java -jar "$CLI" list-patches --help > "$OUT/cli-list-patches-help.txt" 2>&1 || true
