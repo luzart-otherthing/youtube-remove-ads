@@ -70,6 +70,25 @@ class InnerTube(
             .apply { visitorData?.takeIf { it.isNotBlank() }?.let { put("visitorData", it) } },
     )
 
+    /**
+     * Máy khách YouTube VR trên kính Oculus Quest 3 (giống bản vá "Spoof video streams" của ReVanced,
+     * file ClientType.java). Chỉ dùng khi chưa đăng nhập.
+     */
+    private fun androidVrContext(version: String): JSONObject = JSONObject().put(
+        "client",
+        JSONObject()
+            .put("clientName", ANDROID_VR_CLIENT_NAME)
+            .put("clientVersion", version)
+            .put("deviceMake", ANDROID_VR_DEVICE_MAKE)
+            .put("deviceModel", ANDROID_VR_DEVICE_MODEL)
+            .put("osName", "Android")
+            .put("osVersion", ANDROID_VR_OS_VERSION)
+            .put("androidSdkVersion", ANDROID_VR_SDK_VERSION)
+            .put("hl", HL)
+            .put("gl", GL)
+            .apply { visitorData?.takeIf { it.isNotBlank() }?.let { put("visitorData", it) } },
+    )
+
     private suspend fun post(
         url: String,
         body: JSONObject,
@@ -197,29 +216,61 @@ class InnerTube(
     /** Lấy link phát bằng máy khách visionOS: chỉ 1 yêu cầu, link dùng được ngay (không cần giải mã). */
     suspend fun player(videoId: String): JSONObject = withContext(Dispatchers.IO) {
         ensureVisitor()
-        val body = JSONObject()
-            .put("context", visionContext())
-            .put("videoId", videoId)
-            .put("contentCheckOk", true)
-            .put("racyCheckOk", true)
-        post(
-            "https://youtubei.googleapis.com/youtubei/v1/player?prettyPrint=false",
-            body,
+        playerRequest(
+            videoId,
+            visionContext(),
             mapOf(
                 "User-Agent" to visionUserAgent,
-                "X-YouTube-Client-Name" to "101",
+                "X-YouTube-Client-Name" to VISIONOS_CLIENT_ID,
                 "X-YouTube-Client-Version" to VISIONOS_VERSION,
             ),
         )
     }
 
-    /** Gửi một "ping" thống kê lượt xem (để YouTube biết khách ẩn danh này đã xem video nào). */
-    suspend fun ping(url: String, authed: Boolean = false) = withContext(Dispatchers.IO) {
+    /**
+     * Dự phòng khi visionOS hỏng: lấy link phát bằng máy khách ANDROID_VR (YouTube VR trên Oculus Quest 3).
+     * Cũng chỉ 1 yêu cầu, link dùng được ngay (không cần giải mã chữ ký hay tham số "n").
+     * Có thể thiếu phụ đề hoặc một số định dạng so với visionOS.
+     */
+    suspend fun playerAndroidVr(videoId: String, version: String = ANDROID_VR_VERSION): JSONObject =
+        withContext(Dispatchers.IO) {
+            // Mã khách chỉ là "có thì tốt": nếu API trang web (browse) đang lỗi thì vẫn thử lấy link phát.
+            // Lỗi mạng thì vẫn ném ra – gọi /player cũng sẽ hỏng y như vậy.
+            try {
+                ensureVisitor()
+            } catch (_: InnerTubeException) {
+            } catch (_: org.json.JSONException) {
+            }
+            playerRequest(
+                videoId,
+                androidVrContext(version),
+                mapOf(
+                    "User-Agent" to androidVrUserAgent(version),
+                    "X-YouTube-Client-Name" to ANDROID_VR_CLIENT_ID,
+                    "X-YouTube-Client-Version" to version,
+                ),
+            )
+        }
+
+    private suspend fun playerRequest(videoId: String, context: JSONObject, headers: Map<String, String>): JSONObject {
+        val body = JSONObject()
+            .put("context", context)
+            .put("videoId", videoId)
+            .put("contentCheckOk", true)
+            .put("racyCheckOk", true)
+        return post("https://youtubei.googleapis.com/youtubei/v1/player?prettyPrint=false", body, headers)
+    }
+
+    /**
+     * Gửi một "ping" thống kê lượt xem (để YouTube biết khách ẩn danh này đã xem video nào).
+     * [userAgent]: User-Agent của máy khách đã lấy link phát (mặc định visionOS).
+     */
+    suspend fun ping(url: String, authed: Boolean = false, userAgent: String? = null) = withContext(Dispatchers.IO) {
         runCatching {
             val auth = if (authed) account?.authHeaders() else null
             val request = Request.Builder()
                 .url(url)
-                .header("User-Agent", if (auth != null) WEB_UA else visionUserAgent)
+                .header("User-Agent", if (auth != null) WEB_UA else userAgent ?: visionUserAgent)
                 .apply { visitorData?.takeIf { it.isNotBlank() }?.let { header("X-Goog-Visitor-Id", it) } }
                 .apply { auth?.forEach { (k, v) -> header(k, v) } }
                 .build()
@@ -236,6 +287,32 @@ class InnerTube(
         const val GL = "VN"
         const val WEB_VERSION_FALLBACK = "2.20261030.02.00"
         const val VISIONOS_VERSION = "1.02"
+        const val VISIONOS_CLIENT_ID = "101"
+
+        // ANDROID_VR – thông số lấy từ ReVanced (ClientType.java: ANDROID_VR_1_61_48 / ANDROID_VR_1_43_32).
+        const val ANDROID_VR_CLIENT_NAME = "ANDROID_VR"
+        const val ANDROID_VR_CLIENT_ID = "28"
+        const val ANDROID_VR_VERSION = "1.61.48"
+
+        /** Thử lần lượt: bản mới (có AV1) rồi bản cũ 1.43.32 (không AV1). */
+        val ANDROID_VR_VERSIONS = listOf(ANDROID_VR_VERSION, "1.43.32")
+        const val ANDROID_VR_PACKAGE = "com.google.android.apps.youtube.vr.oculus"
+        const val ANDROID_VR_DEVICE_MAKE = "Oculus"
+        const val ANDROID_VR_DEVICE_MODEL = "Quest 3"
+        const val ANDROID_VR_OS_VERSION = "12" // Android 12.1
+        const val ANDROID_VR_SDK_VERSION = 32
+        const val ANDROID_VR_BUILD_ID = "SQ3A.220605.009.A1"
+
+        /** Giống ReVanced: "<gói>/<phiên bản> (Linux; U; Android <os>; <ngôn ngữ>; <máy>; Build/<build>)". */
+        fun androidVrUserAgent(version: String = ANDROID_VR_VERSION): String =
+            "$ANDROID_VR_PACKAGE/$version (Linux; U; Android $ANDROID_VR_OS_VERSION; ${HL}_$GL; " +
+                "$ANDROID_VR_DEVICE_MODEL; Build/$ANDROID_VR_BUILD_ID)"
+
+        /** Link googlevideo do máy khách ANDROID_VR cấp (có tham số c=ANDROID_VR). */
+        fun isAndroidVrStreamingUrl(url: String): Boolean = ANDROID_VR_URL.containsMatchIn(url)
+
+        private val ANDROID_VR_URL = Regex("[?&]c=$ANDROID_VR_CLIENT_NAME(&|$)")
+
         const val WEB_UA =
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36"
         private const val VISIONOS_UA_FALLBACK =

@@ -52,7 +52,11 @@ class WatchTracker(private val innerTube: InnerTube) {
         if (!reportedPlayback) {
             reportedPlayback = true
             playbackUrl?.let {
-                innerTube.ping(withParams(it, mapOf("ver" to "2", "cpn" to cpn, "cmt" to pos.toString())), authed)
+                innerTube.ping(
+                    withParams(it, mapOf("ver" to "2", "cpn" to cpn, "cmt" to pos.toString())),
+                    authed,
+                    d.clientUserAgent,
+                )
             }
         }
         // Báo thời lượng đã xem sau 30 giây, rồi mỗi 2 phút một lần.
@@ -74,6 +78,7 @@ class WatchTracker(private val innerTube: InnerTube) {
                         ),
                     ),
                     authed,
+                    d.clientUserAgent,
                 )
             }
         }

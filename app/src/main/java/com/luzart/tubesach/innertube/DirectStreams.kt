@@ -77,7 +77,15 @@ data class PlayerData(
     /** Thời điểm link hết hạn, theo [SystemClock.elapsedRealtime] (không bị lệch khi người dùng chỉnh giờ). */
     val expiresAtMs: Long,
     val captions: List<CaptionTrack> = emptyList(),
+    /** User-Agent của máy khách YouTube đã cấp link (visionOS, ANDROID_VR…); null = visionOS. */
+    val clientUserAgent: String? = null,
 ) {
+    /**
+     * Có luồng phát thẳng dùng được: video thường cần dựng được manifest DASH (H.264 + AAC),
+     * video trực tiếp cần link HLS.
+     */
+    val isDirectPlayable: Boolean get() = if (isLive) hlsUrl != null else dashManifest() != null
+
     /** Các độ phân giải có thể chọn trong menu "Chất lượng" (chỉ H.264, tối đa 1080p). */
     val availableHeights: List<Int> get() = availableHeights(null)
 
@@ -163,7 +171,11 @@ data class PlayerData(
         /** Tối đa 4K (2160p). 8K thường chỉ có AV1 – rất ít điện thoại giải mã nổi. */
         const val MAX_VP9_QUALITY = 2160
 
-        fun parse(json: JSONObject, videoId: String): PlayerData {
+        /**
+         * Đọc phản hồi /player. Chịu được phản hồi thiếu phụ đề, thiếu HLS hay thiếu một số định dạng
+         * (ví dụ máy khách ANDROID_VR): khi đó danh sách tương ứng rỗng / null, không ném lỗi.
+         */
+        fun parse(json: JSONObject, videoId: String, clientUserAgent: String? = null): PlayerData {
             val status = json.s("playabilityStatus", "status")
             if (status != "OK") {
                 val reason = textOf(json.o("playabilityStatus")?.opt("reason")) ?: json.s("playabilityStatus", "reason")
@@ -220,6 +232,7 @@ data class PlayerData(
                 watchtimeTrackingUrl = json.s("playbackTracking", "videostatsWatchtimeUrl", "baseUrl"),
                 expiresAtMs = SystemClock.elapsedRealtime() + expires * 1000,
                 captions = captions,
+                clientUserAgent = clientUserAgent,
             )
         }
 

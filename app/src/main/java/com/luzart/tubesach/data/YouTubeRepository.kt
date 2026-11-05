@@ -3,8 +3,10 @@ package com.luzart.tubesach.data
 import android.util.Xml
 import com.luzart.tubesach.account.AccountInfo
 import com.luzart.tubesach.innertube.InnerTube
+import com.luzart.tubesach.innertube.InnerTubeException
 import com.luzart.tubesach.innertube.Parser
 import com.luzart.tubesach.innertube.PlayerData
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -25,13 +27,14 @@ import org.schabi.newpipe.extractor.services.youtube.linkHandler.YoutubeSearchQu
 import org.schabi.newpipe.extractor.stream.StreamInfo
 import org.schabi.newpipe.extractor.stream.StreamInfoItem
 import org.xmlpull.v1.XmlPullParser
+import java.io.IOException
 import java.time.Duration
 import java.time.OffsetDateTime
 
 /**
  * Nơi lấy mọi dữ liệu YouTube.
  * - Trang chủ, tìm kiếm, trang xem, kênh, Shorts: gọi thẳng InnerTube (nhanh, chữ tiếng Việt y như YouTube).
- * - Link phát: máy khách visionOS (1 yêu cầu); dự phòng bằng NewPipeExtractor nếu YouTube thay đổi.
+ * - Link phát: máy khách visionOS (1 yêu cầu), lỗi thì thử ANDROID_VR; cuối cùng mới dùng NewPipeExtractor.
  * - Bình luận, gợi ý tìm kiếm: NewPipeExtractor.
  */
 object YouTubeRepository {
@@ -115,7 +118,49 @@ object YouTubeRepository {
 
     suspend fun relatedMore(token: String): FeedPage = io { Parser.continuation(innerTube.next(continuation = token)) }
 
-    suspend fun player(videoId: String): PlayerData = io { PlayerData.parse(innerTube.player(videoId), videoId) }
+    /**
+     * Lấy link phát, thử lần lượt các máy khách YouTube (mỗi máy khách chỉ 1 yêu cầu, nhanh):
+     * visionOS → ANDROID_VR 1.61.48 → ANDROID_VR 1.43.32.
+     *
+     * Chuyển sang máy khách tiếp theo khi: YouTube trả lỗi (HTTP 4xx/5xx, JSON hỏng), playabilityStatus
+     * khác OK, hoặc không có định dạng phát được (không dựng được DASH; video trực tiếp thì thiếu HLS).
+     * Lỗi mạng thì ném ra ngay: máy khách khác cũng không tải được, thử thêm chỉ làm người dùng chờ lâu hơn.
+     *
+     * Không máy khách nào dùng được → trả kết quả "đỡ nhất" (ví dụ chỉ có HLS) nếu có, nếu không thì ném
+     * lỗi đầu tiên (của visionOS). Khi đó [com.luzart.tubesach.player.PlaybackController] dùng NewPipe.
+     */
+    suspend fun player(videoId: String): PlayerData = io {
+        val clients = buildList<suspend () -> PlayerData> {
+            add { PlayerData.parse(innerTube.player(videoId), videoId) }
+            InnerTube.ANDROID_VR_VERSIONS.forEach { v ->
+                add {
+                    PlayerData.parse(innerTube.playerAndroidVr(videoId, v), videoId, InnerTube.androidVrUserAgent(v))
+                }
+            }
+        }
+        firstPlayable(clients)
+    }
+
+    private suspend fun firstPlayable(clients: List<suspend () -> PlayerData>): PlayerData {
+        var error: Exception? = null
+        var best: PlayerData? = null
+        for (client in clients) {
+            val data = try {
+                client()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                if (e is IOException && e !is InnerTubeException) throw e // mất mạng
+                val first = error
+                if (first == null) error = e else first.addSuppressed(e)
+                continue
+            }
+            if (data.isDirectPlayable) return data
+            // Chưa dùng được hẳn: giữ lại phòng khi các máy khách sau còn tệ hơn (ưu tiên cái có HLS).
+            if (best == null || (best.hlsUrl == null && data.hlsUrl != null)) best = data
+        }
+        return best ?: throw (error ?: InnerTubeException("Không lấy được link phát"))
+    }
 
     /** Dự phòng: lấy link phát qua NewPipeExtractor. */
     suspend fun streamInfo(url: String): StreamInfo = withContext(Dispatchers.IO) {
