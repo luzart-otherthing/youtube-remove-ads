@@ -44,10 +44,6 @@ class TvActivity : ComponentActivity() {
             if (System.currentTimeMillis() - vm.store.lastUpdateCheck > 12 * 60 * 60 * 1000L) vm.checkUpdate()
         }
 
-        mediaSession = runCatching {
-            MediaSession.Builder(this, PlaybackController.player).setId("tubesach-tv").build()
-        }.getOrNull()
-
         setContent {
             TvTheme {
                 TvRoot(
@@ -103,7 +99,19 @@ class TvActivity : ComponentActivity() {
         return super.dispatchKeyEvent(event)
     }
 
+    override fun onStart() {
+        super.onStart()
+        // Chỉ nhận phím ⏯ / Google Assistant khi app đang mở; rời app thì nhả ra (không phát ngầm).
+        if (mediaSession == null) {
+            mediaSession = runCatching {
+                MediaSession.Builder(this, PlaybackController.player).setId("tubesach-tv").build()
+            }.getOrNull()
+        }
+    }
+
     override fun onStop() {
+        mediaSession?.release()
+        mediaSession = null
         super.onStop()
         // Rời app (bấm Home, tắt TV…) → tạm dừng, giống YouTube trên TV. Vị trí xem được lưu lại.
         if (!isChangingConfigurations) PlaybackController.pause()

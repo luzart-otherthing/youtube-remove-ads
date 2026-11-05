@@ -221,6 +221,25 @@ fun PlayerScreen(vm: TvViewModel) {
         }
     }
 
+    // Lỗi phát: ẩn thanh điều khiển / bảng chọn → nút Quay lại thoát video ngay ở lần bấm đầu.
+    LaunchedEffect(error) {
+        if (error != null) {
+            vm.controlsVisible = false
+            vm.panel = null
+        }
+    }
+
+    // Đổi sang video khác (⏭, hết video tự phát tiếp) khi đang hiện điều khiển → ô sáng về nút Phát.
+    var lastVideoId by remember { mutableStateOf(now?.video?.id) }
+    LaunchedEffect(now?.video?.id) {
+        val id = now?.video?.id
+        if (id != null && id != lastVideoId && vm.controlsVisible && vm.panel == null) {
+            withFrameNanos { }
+            playFocus.tryFocus()
+        }
+        lastVideoId = id
+    }
+
     // Thông báo "Đã bỏ qua đoạn tài trợ".
     LaunchedEffect(Unit) {
         PlaybackController.skipped.collect { seg ->
@@ -251,7 +270,10 @@ fun PlayerScreen(vm: TvViewModel) {
                 val code = native.keyCode
                 if (e.type == KeyEventType.KeyDown) lastKeyAt = SystemClock.uptimeMillis()
                 if (isMediaKey(code)) {
-                    if (e.type == KeyEventType.KeyDown) perform(mapPlayerKey(code, controlsVisible = true), native.repeatCount)
+                    val action = mapPlayerKey(code, controlsVisible = true)
+                    val isSeek = action == PlayerKeyAction.SEEK_BACK || action == PlayerKeyAction.SEEK_FORWARD
+                    // Giữ phím ⏯ / ⏭: chỉ tính một lần (riêng tua thì giữ để tua nhanh).
+                    if (e.type == KeyEventType.KeyDown && (native.repeatCount == 0 || isSeek)) perform(action, native.repeatCount)
                     return@onPreviewKeyEvent true
                 }
                 if (vm.panel != null || error != null) return@onPreviewKeyEvent false
@@ -285,7 +307,7 @@ fun PlayerScreen(vm: TvViewModel) {
                     .background(Brush.verticalGradient(listOf(Color.Transparent, Color(0xCC000000))))
                     .padding(horizontal = TvDimens.safeHorizontal, vertical = TvDimens.safeVertical),
             ) {
-                SeekBar(position, duration, buffered, segments, seekTarget, focused = true, isLive = isLive)
+                SeekBar({ position }, { duration }, { buffered }, segments, seekTarget, focused = true, isLive = isLive)
             }
         }
 
@@ -298,9 +320,9 @@ fun PlayerScreen(vm: TvViewModel) {
             Controls(
                 vm = vm,
                 isPlaying = isPlaying,
-                position = position,
-                duration = duration,
-                buffered = buffered,
+                position = { position },
+                duration = { duration },
+                buffered = { buffered },
                 segments = segments,
                 seekTarget = seekTarget,
                 isLive = isLive,
@@ -385,9 +407,9 @@ private fun TvPlayerSurface(isPlaying: Boolean, modifier: Modifier = Modifier) {
 private fun Controls(
     vm: TvViewModel,
     isPlaying: Boolean,
-    position: Long,
-    duration: Long,
-    buffered: Long,
+    position: () -> Long,
+    duration: () -> Long,
+    buffered: () -> Long,
     segments: List<Segment>,
     seekTarget: Long?,
     isLive: Boolean,
@@ -405,6 +427,8 @@ private fun Controls(
     val video = now?.video ?: return
     var label by remember { mutableStateOf("") }
     var relatedFocused by remember { mutableStateOf(false) }
+    // Sang video khác: hàng "Video tiếp theo" được dựng lại, ô sáng không còn ở đó.
+    LaunchedEffect(video.id) { relatedFocused = false }
     var relatedHeightPx by remember { mutableIntStateOf(0) }
     val related = now?.related.orEmpty().filter { !it.isShort }
     val density = LocalDensity.current
@@ -586,9 +610,9 @@ private fun sleepRemaining(endAt: Long?, active: Boolean): String {
  */
 @Composable
 fun SeekBar(
-    position: Long,
-    duration: Long,
-    buffered: Long,
+    positionOf: () -> Long,
+    durationOf: () -> Long,
+    bufferedOf: () -> Long,
     segments: List<Segment>,
     seekTarget: Long?,
     focused: Boolean,
@@ -599,6 +623,10 @@ fun SeekBar(
 ) {
     var hasFocus by remember { mutableStateOf(false) }
     val active = focused || hasFocus
+    // Đọc vị trí ở đây → chỉ thanh tua vẽ lại 4 lần/giây, không phải cả thanh điều khiển.
+    val position = positionOf()
+    val duration = durationOf()
+    val buffered = bufferedOf()
     val shown = seekTarget ?: position
     val fraction = if (duration > 0) (shown.toFloat() / duration).coerceIn(0f, 1f) else 0f
     val bufferedFraction = if (duration > 0) (buffered.toFloat() / duration).coerceIn(0f, 1f) else 0f

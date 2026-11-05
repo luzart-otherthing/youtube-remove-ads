@@ -101,7 +101,10 @@ class TvViewModel(app: Application) : AndroidViewModel(app) {
         channelStack.clear()
         section = s
         when (s) {
-            Section.HOME -> if (homeNeedsRefresh || !home.loaded) loadHome(force = true)
+            // Chỉ làm mới khi đã lâu (≥ 10 phút) để danh sách không bị thay đột ngột lúc đang chọn.
+            Section.HOME -> if (!home.loaded || (homeNeedsRefresh && System.currentTimeMillis() - homeLoadedAt > 10 * 60_000L)) {
+                loadHome(force = true)
+            }
             Section.SUBSCRIPTIONS -> loadSubscriptions()
             else -> Unit
         }
@@ -156,17 +159,20 @@ class TvViewModel(app: Application) : AndroidViewModel(app) {
     var homeTrending by mutableStateOf<List<VideoItem>>(emptyList())
         private set
     private var homeNeedsRefresh = false
+    private var homeLoadedAt = 0L
     private var homeJob: Job? = null
 
     fun loadHome(force: Boolean = false) {
         if ((home.loaded || home.loading) && !force) return
         homeJob?.cancel()
+        homeMoreJob?.cancel()
         home = home.copy(loading = home.entries.isEmpty(), error = null)
         homeJob = viewModelScope.launch {
             try {
                 val page = YouTubeRepository.home()
                 home = FeedState(entries = page.entries, continuation = page.continuation, chips = page.chips, loaded = true)
                 homeNeedsRefresh = false
+                homeLoadedAt = System.currentTimeMillis()
                 if (page.entries.isEmpty() && homeTrending.isEmpty()) {
                     homeTrending = runCatching { YouTubeRepository.trendingVietnam() }.getOrNull()
                         ?.entries?.filterIsInstance<FeedEntry.Video>()?.map { it.video }.orEmpty()
@@ -187,7 +193,8 @@ class TvViewModel(app: Application) : AndroidViewModel(app) {
             return
         }
         homeJob?.cancel()
-        home = home.copy(selectedChip = index, loading = true, entries = emptyList(), error = null)
+        homeMoreJob?.cancel()
+        home = home.copy(selectedChip = index, loading = true, loadingMore = false, entries = emptyList(), continuation = null, error = null)
         homeJob = viewModelScope.launch {
             try {
                 val page = YouTubeRepository.feedContinuation(token)
@@ -200,17 +207,25 @@ class TvViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    private var homeMoreJob: Job? = null
+
     fun loadMoreHome() {
         val token = home.continuation ?: return
         if (home.loadingMore || home.loading) return
         home = home.copy(loadingMore = true)
-        viewModelScope.launch {
+        homeMoreJob = viewModelScope.launch {
             val page = runCatching { YouTubeRepository.feedContinuation(token) }.getOrNull()
-            home = home.copy(
-                entries = home.entries + page?.entries.orEmpty().filterNot { e -> home.entries.any { it.key == e.key } },
-                continuation = page?.continuation,
-                loadingMore = false,
-            )
+            // Trang chủ đã được tải lại / đổi chip trong lúc chờ → bỏ kết quả cũ.
+            if (home.continuation != token) return@launch
+            home = if (page == null) {
+                home.copy(loadingMore = false) // lỗi mạng: giữ token để lần cuộn sau thử lại
+            } else {
+                home.copy(
+                    entries = home.entries + page.entries.filterNot { e -> home.entries.any { it.key == e.key } },
+                    continuation = page.continuation,
+                    loadingMore = false,
+                )
+            }
         }
     }
 
@@ -273,13 +288,17 @@ class TvViewModel(app: Application) : AndroidViewModel(app) {
         results = state.copy(loadingMore = true)
         viewModelScope.launch {
             val page = runCatching { YouTubeRepository.searchMore(token) }.getOrNull()
-            if (resultsQuery != q) return@launch
+            if (resultsQuery != q || results.continuation != token) return@launch
             val cur = results
-            results = cur.copy(
-                entries = cur.entries + page?.entries.orEmpty().filterNot { e -> cur.entries.any { it.key == e.key } },
-                continuation = page?.continuation,
-                loadingMore = false,
-            )
+            results = if (page == null) {
+                cur.copy(loadingMore = false) // lỗi mạng: giữ token để thử lại
+            } else {
+                cur.copy(
+                    entries = cur.entries + page.entries.filterNot { e -> cur.entries.any { it.key == e.key } },
+                    continuation = page.continuation,
+                    loadingMore = false,
+                )
+            }
         }
     }
 
@@ -406,8 +425,11 @@ class TvViewModel(app: Application) : AndroidViewModel(app) {
 
     fun installUpdate() {
         val ready = updateState as? UpdateState.Ready ?: return
-        if (!TvUpdater.install(getApplication(), ready.file)) {
-            updateState = UpdateState.Failed("Hãy cho phép Tube Sạch TV cài ứng dụng: Cài đặt → Ứng dụng → Quyền truy cập đặc biệt → Cài ứng dụng không rõ nguồn gốc.")
+        // Giữ nguyên file đã tải (trạng thái Ready): cấp quyền xong bấm "Cài đặt" lại là cài ngay, không tải lại.
+        updateMessage = if (TvUpdater.install(getApplication(), ready.file)) {
+            null
+        } else {
+            "Hãy cho phép Tube Sạch TV cài ứng dụng (Cài đặt → Ứng dụng → Quyền truy cập đặc biệt → Cài ứng dụng không rõ nguồn gốc), rồi bấm Cài đặt lại."
         }
     }
 

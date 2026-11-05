@@ -116,7 +116,7 @@ fun UpdateBanner(vm: TvViewModel) {
             Text("Có phiên bản mới ${info.version}", style = MaterialTheme.typography.titleMedium)
             val sub = when (val st = vm.updateState) {
                 is UpdateState.Downloading -> "Đang tải… ${st.percent}%"
-                is UpdateState.Ready -> "Đã tải xong. Bấm Cài đặt để cập nhật."
+                is UpdateState.Ready -> vm.updateMessage ?: "Đã tải xong. Bấm Cài đặt để cập nhật."
                 is UpdateState.Failed -> st.message
                 UpdateState.Idle -> "Sửa lỗi khi YouTube thay đổi. Nên cập nhật."
             }

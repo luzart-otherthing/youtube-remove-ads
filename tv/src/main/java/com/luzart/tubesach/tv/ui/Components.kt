@@ -44,6 +44,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -435,7 +436,13 @@ fun SidePanel(
         }
     }
     if (initialFocus != null) {
-        LaunchedEffect(Unit) { runCatching { initialFocus.requestFocus() } }
+        LaunchedEffect(Unit) {
+            // Mục trong LazyColumn chỉ có sau lượt layout → chờ vài khung hình rồi mới đặt ô sáng.
+            repeat(5) {
+                withFrameNanos { }
+                if (initialFocus.tryFocus()) return@LaunchedEffect
+            }
+        }
     }
 }
 
