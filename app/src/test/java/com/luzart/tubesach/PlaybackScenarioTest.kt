@@ -115,6 +115,9 @@ class PlaybackScenarioTest {
         var lastVp9 = false
         /** Giả lập bộ giải mã VP9 hỏng (báo lỗi khi giải mã). */
         @Volatile var failVp9 = false
+        /** Mã lỗi khi [failVp9]; [failVp9Once] = chỉ lỗi một lần. */
+        @Volatile var vp9ErrorCode = PlaybackException.ERROR_CODE_DECODING_FAILED
+        @Volatile var failVp9Once = false
 
         override fun buildDirect(data: PlayerData, metadata: MediaMetadata, subtitle: MediaItem.SubtitleConfiguration?, vp9: com.luzart.tubesach.innertube.Vp9Policy?): MediaSource {
             lastVp9 = data.hasVp9(vp9)
@@ -178,13 +181,32 @@ class PlaybackScenarioTest {
                 val h = clock.createHandler(handler.looper, null)
                 arrayOf(
                     object : androidx.media3.test.utils.FakeVideoRenderer(h, videoListener) {
+                        /** Định dạng của luồng ĐANG phát (không phải các luồng đã phát trước đó). */
+                        var current: androidx.media3.common.Format? = null
+
+                        override fun onStreamChanged(
+                            formats: Array<out androidx.media3.common.Format>,
+                            startPositionUs: Long,
+                            offsetUs: Long,
+                            mediaPeriodId: MediaSource.MediaPeriodId,
+                        ) {
+                            super.onStreamChanged(formats, startPositionUs, offsetUs, mediaPeriodId)
+                            current = formats.firstOrNull()
+                        }
+
+                        override fun onDisabled() {
+                            super.onDisabled()
+                            current = null
+                        }
+
                         override fun render(positionUs: Long, elapsedRealtimeUs: Long) {
                             super.render(positionUs, elapsedRealtimeUs)
-                            val f = formatsRead.lastOrNull()
+                            val f = current
                             if (failVp9 && f?.sampleMimeType == androidx.media3.common.MimeTypes.VIDEO_VP9) {
+                                if (failVp9Once) failVp9 = false
                                 throw androidx.media3.exoplayer.ExoPlaybackException.createForRenderer(
                                     IllegalStateException("bộ giải mã VP9 hỏng"), name, 0, f, C.FORMAT_HANDLED, false,
-                                    PlaybackException.ERROR_CODE_DECODING_FAILED,
+                                    vp9ErrorCode,
                                 )
                             }
                         }
@@ -442,7 +464,11 @@ class PlaybackScenarioTest {
 
     private val vp9 = androidx.media3.common.MimeTypes.VIDEO_VP9
     private val h264 = androidx.media3.common.MimeTypes.VIDEO_H264
-    private val playingMime get() = player.videoFormat?.sampleMimeType
+    /** Định dạng của nhóm hình mà ExoPlayer đang chọn phát (H.264 hay VP9). */
+    private val playingMime: String?
+        get() = player.currentTracks.groups
+            .firstOrNull { it.type == C.TRACK_TYPE_VIDEO && it.isSelected }
+            ?.mediaTrackGroup?.getFormat(0)?.sampleMimeType
 
     /** Giả lập máy có bộ giải mã VP9 phần cứng tới [upTo]p. */
     private fun deviceDecodesVp9(upTo: Int = 2160) {
@@ -459,6 +485,20 @@ class PlaybackScenarioTest {
         assertEquals(listOf(vp9, h264), p.preferredVideoMimeTypes)
         assertEquals("Tự động: vẫn tối đa 1080p", 1080, p.maxVideoHeight)
         assertEquals(listOf(2160, 1440, 1080, 720, 480, 360), now!!.availableHeights)
+    }
+
+    @Test
+    fun portraitShortsUseVp9AndKeepDataSaverLimit() {
+        deviceDecodesVp9(upTo = 1080)
+        app.store.updateSettings { it.copy(quality = QualityMode.DATA_SAVER) }
+        yt.portrait = true
+        PlaybackController.playShort(S1)
+        runUntil("Shorts sẵn sàng") { player.playbackState == Player.STATE_READY }
+        assertEquals("Shorts dọc cũng dùng VP9", vp9, playingMime)
+        assertEquals(listOf(1080, 720, 480, 360), now!!.availableHeights)
+        val p = player.trackSelectionParameters
+        assertEquals("Tiết kiệm dữ liệu: giới hạn cạnh ngắn (chiều rộng) 360", 360, p.maxVideoWidth)
+        assertEquals(Int.MAX_VALUE, p.maxVideoHeight)
     }
 
     @Test
@@ -481,11 +521,13 @@ class PlaybackScenarioTest {
     fun fourKOnlyWhenChosenInAdvanced() {
         deviceDecodesVp9()
         openAndWaitReady(A)
+        assertTrue("Tự động: giới hạn theo màn hình", player.trackSelectionParameters.isViewportSizeLimitedByPhysicalDisplaySize)
         PlaybackController.setQuality(QualityMode.ADVANCED, 2160)
         var p = player.trackSelectionParameters
         assertEquals(2160, p.minVideoHeight)
         assertEquals(2160, p.maxVideoHeight)
-        assertEquals("Đã chọn rõ 4K → không giới hạn theo màn hình", Int.MAX_VALUE, p.viewportWidth)
+        assertFalse("Đã chọn rõ 4K → không giới hạn theo màn hình", p.isViewportSizeLimitedByPhysicalDisplaySize)
+        assertEquals(Int.MAX_VALUE, p.viewportWidth)
 
         // Video tiếp theo trên máy không giải mã nổi 4K → tự dùng mức cao nhất có (1080p), không lỗi.
         com.luzart.tubesach.player.VideoCodecSupport.override = null
@@ -500,7 +542,7 @@ class PlaybackScenarioTest {
         p = player.trackSelectionParameters
         assertEquals(1080, p.maxVideoHeight)
         assertEquals(0, p.minVideoHeight)
-        assertTrue(p.viewportWidth != Int.MAX_VALUE)
+        assertTrue("Giới hạn theo màn hình như cũ", p.isViewportSizeLimitedByPhysicalDisplaySize)
     }
 
     @Test
@@ -526,6 +568,44 @@ class PlaybackScenarioTest {
         runUntil("B sẵn sàng") { now?.video?.id == B && player.playbackState == Player.STATE_READY }
         assertFalse(yt.lastVp9)
         assertEquals(h264, playingMime)
+    }
+
+    @Test
+    fun vp9ErrorAfterAlreadyMarkedBrokenStillRecovers() {
+        deviceDecodesVp9()
+        openAndWaitReady(A)
+        runUntil("đang phát VP9") { playingMime == vp9 }
+        // Trường hợp hiếm: máy vừa bị đánh dấu "VP9 không ổn" nhưng luồng VP9 cũ vẫn đang phát rồi báo lỗi.
+        app.store.setVp9Broken(true)
+        yt.failVp9 = true
+        runUntil("vẫn tự chuyển về H.264") { player.playbackState == Player.STATE_READY && playingMime == h264 }
+        assertNull(PlaybackController.error.value)
+        assertEquals("Không phải lấy lại link", 1, yt.playerCalls.size)
+    }
+
+    @Test
+    fun decoderReclaimedBySystemKeepsVp9() {
+        deviceDecodesVp9()
+        openAndWaitReady(A)
+        runUntil("đang phát VP9") { playingMime == vp9 }
+        player.seekTo(25_000)
+        runUntil("ở giây 25") { player.playbackState == Player.STATE_READY && player.currentPosition >= 25_000 }
+        // Hệ thống lấy lại bộ giải mã (ví dụ app khác mở camera) – không phải lỗi của VP9.
+        val errors = mutableListOf<Int>()
+        player.addListener(object : Player.Listener {
+            override fun onPlayerError(error: PlaybackException) { errors += error.errorCode }
+        })
+        yt.vp9ErrorCode = PlaybackException.ERROR_CODE_DECODING_RESOURCES_RECLAIMED
+        yt.failVp9Once = true
+        yt.failVp9 = true
+        runUntil("app nhận lỗi") { errors.isNotEmpty() }
+        assertEquals(listOf(PlaybackException.ERROR_CODE_DECODING_RESOURCES_RECLAIMED), errors)
+        runUntil("phát tiếp") { player.playbackState == Player.STATE_READY && player.isPlaying }
+        assertFalse("Không đánh dấu máy phát VP9 kém", app.store.vp9Broken.value)
+        assertEquals(vp9, playingMime)
+        assertNull(PlaybackController.error.value)
+        assertEquals("Không chuyển sang NewPipe dự phòng", 0, yt.fallbackCalls)
+        assertTrue("Phát tiếp đúng chỗ (${player.currentPosition})", player.currentPosition >= 25_000)
     }
 
     @Test

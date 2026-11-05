@@ -64,8 +64,63 @@ class OnlineScenarioTest {
 
     @After
     fun tearDown() {
-        if (System.getProperty("online") == "true") PlaybackController.resetForTest(null)
+        if (System.getProperty("online") == "true") {
+            com.luzart.tubesach.player.VideoCodecSupport.resetForTest()
+            app.store.setVp9Broken(false)
+            PlaybackController.resetForTest(null)
+        }
     }
+
+    /** Nhóm hình đang được chọn + độ phân giải (cạnh ngắn) của luồng đang chọn trong nhóm. */
+    private fun selectedVideo(): Pair<String?, Int>? {
+        val g = player.currentTracks.groups.firstOrNull { it.type == androidx.media3.common.C.TRACK_TYPE_VIDEO && it.isSelected } ?: return null
+        val i = (0 until g.length).firstOrNull { g.isTrackSelected(it) } ?: return null
+        val f = g.getTrackFormat(i)
+        return f.sampleMimeType to minOf(f.width, f.height)
+    }
+
+    @Test
+    fun realVp9StreamsIncluding4k() {
+        // Giả lập điện thoại có bộ giải mã VP9 phần cứng tới 4K.
+        com.luzart.tubesach.player.VideoCodecSupport.override = { _, _, _ -> true }
+        app.store.setVp9Broken(false)
+        app.store.updateSettings { it.copy(preferVp9 = true, quality = QualityMode.ADVANCED, fixedHeight = 2160) }
+        PlaybackController.play(VideoItem.ofId("dQw4w9WgXcQ"), resume = false)
+        runUntil("phát luồng VP9 4K thật") {
+            player.playbackState == Player.STATE_READY && selectedVideo() == (androidx.media3.common.MimeTypes.VIDEO_VP9 to 2160)
+        }
+        println("Độ phân giải có thể chọn: ${now!!.availableHeights}")
+        assertEquals(2160, now!!.availableHeights.first())
+        // Tải thật được vài giây hình 4K từ máy chủ YouTube (tạm dừng để đo phần đã tải trước).
+        val loaded = java.util.concurrent.atomic.AtomicLong()
+        player.addAnalyticsListener(object : androidx.media3.exoplayer.analytics.AnalyticsListener {
+            override fun onLoadCompleted(
+                eventTime: androidx.media3.exoplayer.analytics.AnalyticsListener.EventTime,
+                loadEventInfo: androidx.media3.exoplayer.source.LoadEventInfo,
+                mediaLoadData: androidx.media3.exoplayer.source.MediaLoadData,
+            ) {
+                if (mediaLoadData.trackType == androidx.media3.common.C.TRACK_TYPE_VIDEO &&
+                    mediaLoadData.trackFormat?.sampleMimeType == androidx.media3.common.MimeTypes.VIDEO_VP9
+                ) loaded.addAndGet(loadEventInfo.bytesLoaded)
+            }
+        })
+        player.seekTo(0)
+        player.pause()
+        runUntil("đã tải ≥ 5 giây hình 4K") { player.bufferedPosition - player.currentPosition >= 5_000 && loaded.get() > 1_000_000 }
+        println("Đã tải ${loaded.get() / 1024} KB hình VP9 4K, phía trước ${(player.bufferedPosition - player.currentPosition) / 1000} giây")
+        player.play()
+        assertNull(PlaybackController.error.value)
+
+        // Về "Tự động": vẫn VP9 (tiết kiệm dữ liệu) nhưng không quá 1080p.
+        PlaybackController.setQuality(QualityMode.AUTO)
+        runUntil("Tự động: VP9 ≤ 1080p") {
+            val v = selectedVideo()
+            player.playbackState == Player.STATE_READY && v?.first == androidx.media3.common.MimeTypes.VIDEO_VP9 && v.second <= 1080
+        }
+        println("Tự động đang chọn: ${selectedVideo()}")
+        assertNull(PlaybackController.error.value)
+    }
+
 
     /** Thời gian giả lập trôi theo bước 50 ms; mỗi bước chờ thật 5 ms để mạng thật kịp tải. */
     private fun runUntil(what: String, fakeTimeoutMs: Long = 600_000, condition: () -> Boolean) {

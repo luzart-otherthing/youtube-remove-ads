@@ -278,8 +278,10 @@ object PlaybackController {
     /** Máy có giải mã VP9 phần cứng được (ít nhất 1080p) – để hiện công tắc trong Cài đặt. */
     fun vp9Available(): Boolean = VideoCodecSupport.vp9Available()
 
-    /** Đang phát luồng VP9. */
-    private fun playingVp9(): Boolean = _player?.videoFormat?.sampleMimeType == MimeTypes.VIDEO_VP9
+    /** Nhóm hình ExoPlayer đang chọn phát là VP9 (tắt màn hình → không có nhóm hình nào được chọn). */
+    private fun playingVp9(): Boolean = _player?.currentTracks?.groups?.any {
+        it.type == C.TRACK_TYPE_VIDEO && it.isSelected && it.mediaTrackGroup.getFormat(0).sampleMimeType == MimeTypes.VIDEO_VP9
+    } == true
 
     /** Thời điểm (elapsedRealtime) lần gần nhất VP9 rơi nhiều khung hình. */
     private var lastHeavyDropAt = 0L
@@ -316,11 +318,11 @@ object PlaybackController {
      * Dựng lại luồng của video đang xem theo cài đặt VP9 hiện tại, giữ nguyên chỗ đang xem và trạng thái phát.
      * Gọi khi bật/tắt "Tiết kiệm dữ liệu (VP9)" hoặc khi tự chuyển về H.264.
      */
-    fun reloadCodecs() {
-        val p = _player ?: return
-        val data = currentData ?: return
-        val now = _nowPlaying.value ?: return
-        if (usingFallback || data.isLive) return
+    fun reloadCodecs(): Boolean {
+        val p = _player ?: return false
+        val data = currentData ?: return false
+        val now = _nowPlaying.value ?: return false
+        if (usingFallback || data.isLive) return false
         queued = null // setMediaSource thay cả danh sách phát → xếp lại video kế tiếp sau
         retryJob?.cancel()
         lastHeavyDropAt = 0L
@@ -332,6 +334,7 @@ object PlaybackController {
         p.setMediaSource(backend.buildDirect(data, metadataOf(now.video), subtitleConfig(), vp9), pos)
         p.prepare()
         p.playWhenReady = playing
+        return true
     }
 
     private val playerListener = object : Player.Listener {
@@ -362,9 +365,10 @@ object PlaybackController {
         override fun onPlayerError(error: PlaybackException) {
             // Bộ giải mã VP9 lỗi (khởi tạo hỏng, giải mã hỏng, không đủ sức…) → chuyển về H.264 tại chỗ.
             val rendererFormat = (error as? ExoPlaybackException)?.rendererFormat
-            if (error.errorCode in DECODER_ERRORS && rendererFormat?.sampleMimeType == MimeTypes.VIDEO_VP9 && !store.vp9Broken.value) {
-                disableVp9()
-                return
+            if (error.errorCode in DECODER_ERRORS && rendererFormat?.sampleMimeType == MimeTypes.VIDEO_VP9) {
+                if (!store.vp9Broken.value) store.setVp9Broken(true)
+                if (reloadCodecs()) return
+                // Không dựng lại được (đang dùng NewPipe dự phòng…) → xử lý như lỗi thường bên dưới.
             }
             val cause = error.cause
             val forbidden = cause is HttpDataSource.InvalidResponseCodeException &&
@@ -390,7 +394,9 @@ object PlaybackController {
                 retryCount++
                 val attempt = retryCount
                 val pos = player.currentPosition
-                val fallback = !network && (attempt >= 2 || !forbidden)
+                // Bộ giải mã bị hệ thống lấy lại → chỉ cần dựng lại đúng luồng cũ; NewPipe cũng cho đúng các luồng đó.
+                val reclaimed = error.errorCode == PlaybackException.ERROR_CODE_DECODING_RESOURCES_RECLAIMED
+                val fallback = !network && !reclaimed && (attempt >= 2 || !forbidden)
                 _loading.value = true
                 retryJob?.cancel()
                 retryJob = scope.launch {
@@ -803,7 +809,7 @@ object PlaybackController {
             .clearVideoSizeConstraints()
             .setMinVideoSize(0, 0)
             .setForceHighestSupportedBitrate(false)
-            .setViewportSizeToPhysicalDisplaySize(appContext, true)
+            .setViewportSizeToPhysicalDisplaySize(true) // như mặc định: không chọn luồng to hơn màn hình quá nhiều
             // Có VP9 (máy giải mã phần cứng được) → ưu tiên VP9: cùng độ nét mà tốn ít dữ liệu hơn nhiều.
             .setPreferredVideoMimeTypes(*(if (vp9) arrayOf(MimeTypes.VIDEO_VP9, MimeTypes.VIDEO_H264) else arrayOf(MimeTypes.VIDEO_H264)))
         fun max(q: Int) = if (portrait) b.setMaxVideoSize(q, Int.MAX_VALUE) else b.setMaxVideoSize(Int.MAX_VALUE, q)
@@ -1150,6 +1156,16 @@ object PlaybackController {
     private const val DROP_LIMIT = 50
     private const val DROP_WINDOW_MS = 10_000L
 
-    /** Mã lỗi nhóm 4xxx của Media3: lỗi bộ giải mã (khởi tạo, giải mã, vượt khả năng, không hỗ trợ…). */
-    private val DECODER_ERRORS = 4001..4999
+    /**
+     * Lỗi do chính bộ giải mã (khởi tạo hỏng, giải mã hỏng, vượt khả năng, không hỗ trợ). KHÔNG gồm
+     * "hệ thống lấy lại bộ giải mã" (ERROR_CODE_DECODING_RESOURCES_RECLAIMED – ví dụ app khác mở camera):
+     * lỗi đó không phải do máy phát VP9 kém.
+     */
+    private val DECODER_ERRORS = setOf(
+        PlaybackException.ERROR_CODE_DECODER_INIT_FAILED,
+        PlaybackException.ERROR_CODE_DECODER_QUERY_FAILED,
+        PlaybackException.ERROR_CODE_DECODING_FAILED,
+        PlaybackException.ERROR_CODE_DECODING_FORMAT_EXCEEDS_CAPABILITIES,
+        PlaybackException.ERROR_CODE_DECODING_FORMAT_UNSUPPORTED,
+    )
 }
