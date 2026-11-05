@@ -1,6 +1,11 @@
 package com.luzart.tubesach.tv.ui
 
+import android.view.KeyEvent as AndroidKeyEvent
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.Box
@@ -120,7 +125,29 @@ fun TvRoot(
         }
     }
 
-    Box(Modifier.fillMaxSize().background(TvColors.background)) {
+    // Phím Quay lại của remote: bắt ở ngoài cùng, trước bộ điều khiển ô sáng của Compose.
+    // Nếu không, Compose dùng Back để "đưa ô sáng ra nhóm ngoài" (FocusDirection.Exit); trong trình phát
+    // việc đó bị chặn (để ô sáng không lọt ra trang chủ) và phím Back bị nuốt mất → không thoát được video.
+    val backDispatcher = LocalOnBackPressedDispatcherOwner.current?.onBackPressedDispatcher
+    var backDown by remember { mutableStateOf(false) }
+
+    Box(
+        Modifier
+            .fillMaxSize()
+            .background(TvColors.background)
+            .onPreviewKeyEvent { e ->
+                val code = e.nativeKeyEvent.keyCode
+                if (code != AndroidKeyEvent.KEYCODE_BACK && code != AndroidKeyEvent.KEYCODE_ESCAPE) return@onPreviewKeyEvent false
+                when (e.type) {
+                    KeyEventType.KeyDown -> backDown = true
+                    KeyEventType.KeyUp -> {
+                        if (backDown && !e.nativeKeyEvent.isCanceled) backDispatcher?.onBackPressed()
+                        backDown = false
+                    }
+                }
+                true
+            },
+    ) {
         // ---- Phần duyệt video (vẫn giữ nguyên bên dưới khi xem video để quay lại đúng chỗ)
         Box(
             Modifier

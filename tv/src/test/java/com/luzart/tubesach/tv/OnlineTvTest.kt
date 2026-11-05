@@ -97,10 +97,16 @@ class OnlineTvTest {
             }
 
             // 4. Quay lại → thoát video, ô sáng về đúng thẻ đã chọn.
-            scenario.onActivity { it.onBackPressedDispatcher.onBackPressed() }
+            scenario.onActivity {
+                it.dispatchKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_BACK))
+                it.dispatchKeyEvent(KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_BACK))
+            }
             compose.settle()
             if (vm.playerOpen) {
-                scenario.onActivity { it.onBackPressedDispatcher.onBackPressed() }
+                scenario.onActivity {
+                it.dispatchKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_BACK))
+                it.dispatchKeyEvent(KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_BACK))
+            }
                 compose.settle()
             }
             assertFalse(vm.playerOpen)

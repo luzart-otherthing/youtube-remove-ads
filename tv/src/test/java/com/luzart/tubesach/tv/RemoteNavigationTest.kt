@@ -69,8 +69,12 @@ class RemoteNavigationTest {
         compose.settle(5)
     }
 
+    /** Bấm phím Quay lại thật của remote: đi qua Activity → cửa sổ → Compose như trên TV. */
     private fun back() {
-        compose.runOnUiThread { compose.activity.onBackPressedDispatcher.onBackPressed() }
+        compose.runOnUiThread {
+            compose.activity.dispatchKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_BACK))
+            compose.activity.dispatchKeyEvent(KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_BACK))
+        }
         compose.settle()
     }
 

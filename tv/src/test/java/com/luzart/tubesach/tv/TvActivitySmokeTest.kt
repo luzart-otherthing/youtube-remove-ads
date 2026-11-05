@@ -63,6 +63,32 @@ class TvActivitySmokeTest {
         }
     }
 
+    /** Lỗi thật trên TV: bấm phím Quay lại khi đang xem video không thoát ra được. */
+    @Test
+    fun remoteBackKeyLeavesPlayer() {
+        val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://youtu.be/dQw4w9WgXcQ"))
+            .setClass(testApp, TvActivity::class.java)
+        ActivityScenario.launch<TvActivity>(intent).use { scenario ->
+            scenario.moveToState(Lifecycle.State.RESUMED)
+            fun pressBack() = scenario.onActivity { a ->
+                a.dispatchKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_BACK))
+                a.dispatchKeyEvent(KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_BACK))
+                org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
+            }
+            lateinit var vm: TvViewModel
+            scenario.onActivity { vm = androidx.lifecycle.ViewModelProvider(it)[TvViewModel::class.java] }
+            assertTrue(vm.playerOpen)
+            // Hiện thanh điều khiển rồi bấm Quay lại 2 lần: ẩn điều khiển → thoát video.
+            scenario.onActivity { vm.controlsVisible = true }
+            pressBack()
+            assertFalse(vm.controlsVisible)
+            assertTrue(vm.playerOpen)
+            pressBack()
+            assertFalse("Phím Quay lại phải thoát video", vm.playerOpen)
+            scenario.onActivity { assertFalse(it.isFinishing) } // chưa thoát app
+        }
+    }
+
     @Test
     fun sharedTextWithoutLinkDoesNotCrash() {
         val intent = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, "không có link")
