@@ -46,22 +46,29 @@ curl -fsSL "$PATCHES_API/patches.rvp" -o "$WORK/patches.rvp"
 echo "CLI: $(basename "$CLI")" >> "$OUT/phien-ban.txt"
 echo "YouTube: $YT_VERSION" >> "$OUT/phien-ban.txt"
 
-verify_google() { # APK phải mang đúng chứng chỉ của Google, nếu không thì có thể đã bị sửa.
-  local cert
-  cert=$("$APKSIGNER" verify --print-certs "$1" 2>/dev/null | grep -m1 'certificate SHA-256 digest' | awk '{print $NF}')
-  echo "Chứng chỉ $(basename "$1"): ${cert:-không đọc được}"
-  [ "$cert" = "$YT_CERT_SHA256" ]
+verify_google() { # Chữ ký phải hợp lệ VÀ một trong các khoá ký phải là khoá YouTube của Google.
+  # YouTube đã xoay khoá (APK Signature Scheme v3.1): APK có nhiều người ký, khoá gốc của Google
+  # (3d7a…) vẫn nằm trong đó cùng khoá mới. apksigner chỉ báo thành công khi MỌI chữ ký đều đúng,
+  # nên có khoá Google trong danh sách nghĩa là nội dung APK do Google ký.
+  local out certs
+  if ! out=$("$APKSIGNER" verify --print-certs "$1" 2>&1); then
+    echo "Chữ ký $(basename "$1") KHÔNG hợp lệ:"; echo "$out" | head -5
+    return 1
+  fi
+  certs=$(echo "$out" | grep 'certificate SHA-256 digest' | awk '{print $NF}' | sort -u | tr '\n' ' ')
+  echo "Chứng chỉ $(basename "$1"): $certs"
+  echo "$out" | grep -E '^Signer' | grep 'SHA-256' | sed 's/^/   /'
+  grep -q "$YT_CERT_SHA256" <<<"$certs"
 }
 
-# Lưu ý: các file "-all.apk" trên archive.org là bản người khác gộp lại và TỰ KÝ (không còn chữ ký Google)
-# → không dùng. Lấy bản gốc trên APKMirror rồi tự kiểm tra chữ ký.
+# Lấy bản gốc trên APKMirror rồi tự kiểm tra chữ ký Google (không tin nguồn tải mù quáng).
 log "3. Tải YouTube $YT_VERSION gốc từ APKMirror và kiểm tra chữ ký Google"
 python3 -c 'import bs4' 2>/dev/null \
   || pip install --quiet --break-system-packages beautifulsoup4 2>/dev/null \
   || sudo apt-get install -y -qq python3-bs4
 HERE=$(cd "$(dirname "$0")" && pwd)
-# Giả lập trên GitHub Actions là x86_64 → ưu tiên bản x86_64, rồi tới arm64-v8a (điện thoại thật).
-DL=$(python3 "$HERE/tai_apkmirror.py" "$YT_VERSION" "$WORK/dl" ${YT_ARCHES:-x86_64 arm64-v8a})
+# Ưu tiên APK một file chứa mọi kiến trúc (universal) – chạy được cả trên giả lập x86_64 lẫn điện thoại.
+DL=$(python3 "$HERE/tai_apkmirror.py" "$YT_VERSION" "$WORK/dl" ${YT_ARCHES:-universal x86_64 arm64-v8a})
 echo "Đã tải: $DL"
 case "$DL" in
   *.apk)

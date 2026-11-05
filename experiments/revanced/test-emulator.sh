@@ -10,7 +10,7 @@ APKS=$(cd "${1:-out}" && pwd)
 RES=${2:-results}
 mkdir -p "$RES"
 RES=$(cd "$RES" && pwd)
-VIDEO=${VIDEO_ID:-kJQP7kiw5Fk}
+VIDEO=${VIDEO_ID:-dQw4w9WgXcQ}
 SUMMARY="$RES/tom-tat.md"
 
 sdk=${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}

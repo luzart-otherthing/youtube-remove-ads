@@ -9,7 +9,7 @@ on:
       video_id:
         description: "Mã video dùng để thử"
         required: false
-        default: "kJQP7kiw5Fk"
+        default: "dQw4w9WgXcQ"
   push:
     branches: ["claude/**"]
     paths:
@@ -28,7 +28,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     env:
-      VIDEO_ID: ${{ github.event.inputs.video_id || 'kJQP7kiw5Fk' }}
+      VIDEO_ID: ${{ github.event.inputs.video_id || 'dQw4w9WgXcQ' }}
     steps:
       - uses: actions/checkout@v6
 
