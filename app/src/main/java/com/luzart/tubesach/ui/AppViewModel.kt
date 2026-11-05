@@ -9,7 +9,9 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.luzart.tubesach.App
+import android.widget.Toast
 import com.luzart.tubesach.data.ChannelPage
+import com.luzart.tubesach.data.ChannelRef
 import com.luzart.tubesach.data.Chip
 import com.luzart.tubesach.data.CommentItem
 import com.luzart.tubesach.data.FeedEntry
@@ -17,6 +19,7 @@ import com.luzart.tubesach.data.FeedPage
 import com.luzart.tubesach.data.ShortItem
 import com.luzart.tubesach.data.VideoItem
 import com.luzart.tubesach.data.YouTubeRepository
+import com.luzart.tubesach.net.NetworkMonitor
 import com.luzart.tubesach.player.PlaybackController
 import com.luzart.tubesach.update.UpdateChecker
 import com.luzart.tubesach.update.UpdateInfo
@@ -77,6 +80,22 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     val store = (app as App).store
     private val http = (app as App).http
+
+    init {
+        // Có mạng trở lại → tự tải lại các trang đang báo lỗi.
+        viewModelScope.launch { NetworkMonitor.reconnected.collect { onResume() } }
+    }
+
+    /** Mở lại app / bật màn hình / có mạng lại: tải lại những gì đang lỗi (không làm mất chỗ đang xem). */
+    fun onResume() {
+        if (home.error != null && !home.loading) {
+            if (home.selectedChip == 0) refreshHome() else selectChip(home.selectedChip)
+        }
+        results.filterValues { it.error != null && !it.loading }.keys.toList()
+            .forEach { q -> runSearch(q, resultFilter[q] ?: YouTubeRepository.SearchFilter.ALL) }
+        if (subscriptionFeed.loaded && subscriptionFeed.entries.isEmpty() && store.subscriptions.value.isNotEmpty()) loadSubscriptions(force = true)
+        if (shorts.isEmpty() && tab == Tab.SHORTS) ensureShorts()
+    }
 
     // ---------------------------------------------------------------- Điều hướng
 
@@ -196,11 +215,23 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         val token = home.continuation ?: return
         if (home.loadingMore || home.loading) return
         home = home.copy(loadingMore = true)
+        val job = homeJob
         viewModelScope.launch {
             val page = runCatching { YouTubeRepository.feedContinuation(token) }.getOrNull()
+            // Trang chủ vừa được làm mới / đổi chip trong lúc tải → bỏ kết quả cũ.
+            if (homeJob !== job || home.continuation != token) {
+                home = home.copy(loadingMore = false)
+                return@launch
+            }
+            if (page == null) {
+                // Lỗi mạng: giữ token để cuộn xuống lần nữa là thử lại (trước đây mất token → hết cuộn).
+                home = home.copy(loadingMore = false)
+                return@launch
+            }
+            val keys = home.entries.mapTo(HashSet()) { it.key }
             home = home.copy(
-                entries = home.entries + page?.entries.orEmpty().filterNot { e -> home.entries.any { it.key == e.key } },
-                continuation = page?.continuation,
+                entries = home.entries + page.entries.filter { keys.add(it.key) },
+                continuation = page.continuation,
                 loadingMore = false,
             )
         }
@@ -271,9 +302,14 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             val page = runCatching { YouTubeRepository.searchMore(token) }.getOrNull()
             val cur = results[q] ?: return@launch
+            if (page == null || cur.continuation != token) {
+                results[q] = cur.copy(loadingMore = false) // giữ token để thử lại
+                return@launch
+            }
+            val keys = cur.entries.mapTo(HashSet()) { it.key }
             results[q] = cur.copy(
-                entries = cur.entries + page?.entries.orEmpty().filterNot { e -> cur.entries.any { it.key == e.key } },
-                continuation = page?.continuation,
+                entries = cur.entries + page.entries.filter { keys.add(it.key) },
+                continuation = page.continuation,
                 loadingMore = false,
             )
         }
@@ -324,10 +360,15 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             val page = runCatching { YouTubeRepository.feedContinuation(token) }.getOrNull()
             val cur = channels[id] ?: return@launch
+            if (page == null || cur.videos.continuation != token) {
+                channels[id] = cur.copy(videos = cur.videos.copy(loadingMore = false)) // giữ token để thử lại
+                return@launch
+            }
+            val keys = cur.videos.entries.mapTo(HashSet()) { it.key }
             channels[id] = cur.copy(
                 videos = cur.videos.copy(
-                    entries = cur.videos.entries + page?.entries.orEmpty(),
-                    continuation = page?.continuation,
+                    entries = cur.videos.entries + page.entries.filter { keys.add(it.key) },
+                    continuation = page.continuation,
                     loadingMore = false,
                 ),
             )
@@ -341,6 +382,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun loadSubscriptions(force: Boolean = false) {
         val subs = store.subscriptions.value
+        if (YouTubeRepository.signedIn) {
+            loadAccountSubscriptions()
+            return
+        }
         if (subs.isEmpty()) {
             subscriptionFeed = FeedState(loaded = true)
             return
@@ -353,6 +398,124 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             val videos = YouTubeRepository.subscriptionFeed(subs)
             subscriptionFeed = FeedState(entries = videos.map { FeedEntry.Video(it) }, loaded = true)
+        }
+    }
+
+    /** Đã đăng nhập: lấy tab "Kênh đăng ký" của chính tài khoản; lỗi thì dùng RSS như khi chưa đăng nhập. */
+    private fun loadAccountSubscriptions() {
+        subscriptionFeed = if (subscriptionFeed.loaded) subscriptionFeed.copy(refreshing = true) else subscriptionFeed.copy(loading = true)
+        viewModelScope.launch {
+            val page = try {
+                YouTubeRepository.accountSubscriptionFeed()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Throwable) {
+                null
+            }
+            subscriptionFeed = if (page != null && page.entries.isNotEmpty()) {
+                FeedState(entries = page.entries, continuation = page.continuation, loaded = true)
+            } else {
+                val subs = store.subscriptions.value
+                FeedState(entries = YouTubeRepository.subscriptionFeed(subs).map { FeedEntry.Video(it) }, loaded = true)
+            }
+        }
+    }
+
+    // ---------------------------------------------------------------- Tài khoản Google (thử nghiệm)
+
+    val account = (app as App).account
+
+    private fun toast(text: String) {
+        Toast.makeText(getApplication(), text, Toast.LENGTH_SHORT).show()
+    }
+
+    /** Gửi thay đổi lên tài khoản (nếu đã đăng nhập). Lỗi thì báo nhẹ, thay đổi trên máy vẫn giữ. */
+    private fun syncToAccount(what: String, block: suspend () -> Unit) {
+        if (!YouTubeRepository.signedIn) return
+        viewModelScope.launch {
+            try {
+                block()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Throwable) {
+                toast("Không đồng bộ được $what lên tài khoản Google")
+            }
+        }
+    }
+
+    fun toggleSubscription(channel: ChannelRef) {
+        store.toggleSubscription(channel)
+        val subscribed = store.isSubscribed(channel.id)
+        syncToAccount("kênh đăng ký") { YouTubeRepository.setSubscribed(channel.id, subscribed) }
+    }
+
+    fun toggleLike(video: VideoItem) {
+        store.toggleLike(video)
+        val liked = store.liked.value.any { it.id == video.id }
+        syncToAccount("lượt thích") { YouTubeRepository.rate(video.id, if (liked) "like" else "removelike") }
+    }
+
+    fun toggleDislike(videoId: String) {
+        store.toggleDislike(videoId)
+        val disliked = videoId in store.disliked.value
+        syncToAccount("lượt không thích") { YouTubeRepository.rate(videoId, if (disliked) "dislike" else "removelike") }
+    }
+
+    /** Trang đăng nhập (WebView) báo đã có cookie YouTube. */
+    fun onLoginFinished() {
+        account.onLoggedIn(null)
+        home = FeedState()
+        loadHome(force = true)
+        viewModelScope.launch {
+            runCatching { YouTubeRepository.accountInfo() }.getOrNull()?.let { account.updateInfo(it) }
+            // Đưa các kênh đã đăng ký trong tài khoản vào danh sách trên máy.
+            runCatching { YouTubeRepository.accountChannels() }.getOrNull()?.let { store.addSubscriptions(it) }
+            if (tab == Tab.SUBSCRIPTIONS) loadSubscriptions(force = true)
+        }
+    }
+
+    fun logout() {
+        account.logout()
+        home = FeedState()
+        subscriptionFeed = FeedState()
+        loadHome(force = true)
+        toast("Đã đăng xuất. Dữ liệu trên máy (đã xem, đã thích, kênh đăng ký) vẫn được giữ.")
+    }
+
+    var commentPosting by mutableStateOf(false)
+        private set
+
+    /** Đăng bình luận cho video đang xem. Trả kết quả qua [onDone] (true = thành công). */
+    fun postComment(text: String, onDone: (Boolean) -> Unit) {
+        val videoId = comments.videoId.ifEmpty { PlaybackController.nowPlaying.value?.video?.id } ?: return
+        val body = text.trim()
+        if (body.isEmpty() || commentPosting) return
+        commentPosting = true
+        viewModelScope.launch {
+            val ok = try {
+                YouTubeRepository.postComment(videoId, body)
+                true
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Throwable) {
+                toast(if (e is IOException) "Không có kết nối mạng" else e.message ?: "Không đăng được bình luận")
+                false
+            }
+            commentPosting = false
+            if (ok) {
+                val me = account.info.value
+                val mine = CommentItem(
+                    author = me?.handle ?: me?.name.orEmpty(),
+                    avatar = me?.photo,
+                    text = body,
+                    time = "Vừa xong",
+                    likes = null,
+                    replies = 0,
+                    pinned = false,
+                )
+                if (comments.videoId == videoId) comments = comments.copy(items = listOf(mine) + comments.items)
+            }
+            onDone(ok)
         }
     }
 

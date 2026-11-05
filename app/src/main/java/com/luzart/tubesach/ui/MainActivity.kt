@@ -1,5 +1,6 @@
 package com.luzart.tubesach.ui
 
+import android.os.SystemClock
 import android.app.PendingIntent
 import android.app.PictureInPictureParams
 import android.app.RemoteAction
@@ -69,6 +70,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import com.luzart.tubesach.R
 import com.luzart.tubesach.data.VideoItem
+import com.luzart.tubesach.net.NetworkMonitor
 import com.luzart.tubesach.player.PlaybackController
 import com.luzart.tubesach.ui.components.ShortsFilled
 import com.luzart.tubesach.ui.components.ShortsOutlined
@@ -288,15 +290,28 @@ class MainActivity : ComponentActivity() {
 
     // ---------------------------------------------------------------- Vòng đời
 
+    private var stoppedAt = 0L
+
     override fun onStart() {
         super.onStart()
         PlaybackController.setVideoEnabled(true)
+        if (stoppedAt > 0 && SystemClock.elapsedRealtime() - stoppedAt > 30_000) {
+            // Bật màn hình / quay lại app sau một lúc: kết nối cũ có thể đã chết → bỏ đi,
+            // rồi tự tải lại những gì đang lỗi (video, đề xuất, trang chủ).
+            NetworkMonitor.dropIdleConnections()
+            PlaybackController.onResumeOrReconnect()
+            vm.onResume()
+        }
+        stoppedAt = 0L
     }
 
     override fun onStop() {
         super.onStop()
         // Chạy nền hoặc tắt màn hình: chỉ tải tiếng cho đỡ tốn mạng và pin.
-        if (!isChangingConfigurations) PlaybackController.setVideoEnabled(false)
+        if (!isChangingConfigurations) {
+            PlaybackController.setVideoEnabled(false)
+            stoppedAt = SystemClock.elapsedRealtime() // vẫn chạy khi máy ngủ, không bị ảnh hưởng khi chỉnh giờ
+        }
     }
 
     override fun onConfigurationChanged(newConfig: Configuration) {

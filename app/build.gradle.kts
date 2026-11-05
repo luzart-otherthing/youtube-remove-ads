@@ -120,6 +120,7 @@ dependencies {
     implementation("androidx.media3:media3-exoplayer:$media3")
     implementation("androidx.media3:media3-exoplayer-dash:$media3")
     implementation("androidx.media3:media3-exoplayer-hls:$media3")
+    implementation("androidx.media3:media3-datasource-okhttp:$media3")
     implementation("androidx.media3:media3-session:$media3")
     implementation("androidx.media3:media3-ui:$media3")
 
@@ -140,6 +141,8 @@ dependencies {
     implementation("io.coil-kt.coil3:coil-network-okhttp:3.3.0")
 
     testImplementation("junit:junit:4.13.2")
+    testImplementation("androidx.media3:media3-test-utils:$media3")
+    testImplementation("androidx.media3:media3-test-utils-robolectric:$media3")
     testImplementation("org.robolectric:robolectric:4.17")
     testImplementation("androidx.test:core-ktx:1.7.0")
     testImplementation("androidx.compose.ui:ui-test-junit4")
