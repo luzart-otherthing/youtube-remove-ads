@@ -87,6 +87,41 @@ class ParserTest {
         assertTrue(mpd.contains("width=\"720\" height=\"1280\""))
     }
 
+    private fun parseMpd(xml: String) = androidx.media3.exoplayer.dash.manifest.DashManifestParser()
+        .parse(android.net.Uri.parse("https://x/"), xml.byteInputStream())
+
+    @Test
+    fun vp9AddedOnlyWhenAllowedAndDecodable() {
+        // Dữ liệu thật: video "4K Remaster" có VP9 tới 2160p, H.264 chỉ tới 1080p.
+        val p = PlayerData.parse(fixture("player"), "dQw4w9WgXcQ")
+        assertEquals("Không dùng VP9: chỉ tới 1080p như trước", 1080, p.availableHeights(null).first())
+        assertTrue(!p.dashManifest()!!.contains("video/webm"))
+
+        // Máy giải mã phần cứng được tới 1440p: có 2K, không có 4K.
+        val upTo1440: com.luzart.tubesach.innertube.Vp9Policy = { f -> f.quality <= 1440 }
+        assertEquals(listOf(1440, 1080, 720, 480, 360, 240, 144), p.availableHeights(upTo1440))
+        val mpd = parseMpd(p.dashManifest(vp9 = upTo1440)!!)
+        val sets = mpd.getPeriod(0).adaptationSets
+        val video = sets.filter { it.type == androidx.media3.common.C.TRACK_TYPE_VIDEO }
+        assertEquals("Hai nhóm hình: H.264 và VP9", 2, video.size)
+        val avc = video.single { s -> s.representations.all { it.format.sampleMimeType == androidx.media3.common.MimeTypes.VIDEO_H264 } }
+        val vp9 = video.single { s -> s.representations.all { it.format.sampleMimeType == androidx.media3.common.MimeTypes.VIDEO_VP9 } }
+        assertEquals(1080, avc.representations.maxOf { it.format.height })
+        assertEquals(listOf(1440, 1080, 720, 480, 360, 240, 144), vp9.representations.map { it.format.height }.sortedDescending())
+        assertTrue(vp9.representations.all { it.format.containerMimeType == androidx.media3.common.MimeTypes.VIDEO_WEBM })
+        assertEquals("Vẫn có tiếng AAC", 1, sets.count { it.type == androidx.media3.common.C.TRACK_TYPE_AUDIO })
+
+        // Máy mạnh: có cả 4K. Bỏ VP9 HDR (10-bit) và AV1.
+        val all: com.luzart.tubesach.innertube.Vp9Policy = { true }
+        assertEquals(2160, p.availableHeights(all).first())
+        fun fmt(itag: Int, mime: String, codecs: String, h: Int) =
+            StreamFormat(itag, "https://x/$itag", mime, codecs, 1, h * 16 / 9, h, 30, 0, 700, 701, 1500, 0, 0, null, false)
+        val hdr = p.copy(formats = p.formats + fmt(337, "video/webm", "vp09.02.51.10.01.09.16.09.00", 2160) + fmt(401, "video/mp4", "av01.0.12M.08", 2160))
+        assertTrue(!hdr.dashManifest(vp9 = all)!!.contains("vp09.02") && !hdr.dashManifest(vp9 = all)!!.contains("av01"))
+        // Không có bộ giải mã nào nhận → không thêm nhóm VP9 rỗng.
+        assertTrue(!p.dashManifest(vp9 = { false })!!.contains("video/webm"))
+    }
+
     @Test
     fun shortsFillOnlyWhenAspectIsClose() {
         val phone = 1080f / 2150f

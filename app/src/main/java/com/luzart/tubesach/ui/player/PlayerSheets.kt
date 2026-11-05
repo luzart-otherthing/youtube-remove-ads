@@ -60,6 +60,14 @@ import com.luzart.tubesach.ui.theme.LocalYt
 
 private enum class Page { MAIN, QUALITY, ADVANCED, CAPTIONS, SPEED, SLEEP }
 
+/** "2160p (4K)", "1440p (2K)", "1080p HD", "480p"… */
+fun qualityLabel(h: Int): String = when {
+    h >= 2160 -> "${h}p (4K)"
+    h >= 1440 -> "${h}p (2K)"
+    h >= 720 -> "${h}p HD"
+    else -> "${h}p"
+}
+
 fun speedLabel(s: Float): String = if (s == 1f) "Chuẩn" else (if (s % 1f == 0f) "${s.toInt()}" else "$s").replace('.', ',') + "x"
 
 /** Bảng cài đặt khi bấm biểu tượng ⚙ trên trình phát (giống app YouTube). */
@@ -97,7 +105,7 @@ fun PlayerSettingsSheet(
                         QualityMode.AUTO -> "Tự động" + if (currentHeight > 0) " (${currentHeight}p)" else ""
                         QualityMode.HIGHER -> "Cao hơn" + if (currentHeight > 0) " (${currentHeight}p)" else ""
                         QualityMode.DATA_SAVER -> "Tiết kiệm dữ liệu"
-                        QualityMode.ADVANCED -> "${settings.fixedHeight}p"
+                        QualityMode.ADVANCED -> qualityLabel(settings.fixedHeight)
                     }
                     MenuRow(Icons.Outlined.Tune, "Chất lượng", qualityValue) { page = Page.QUALITY }
                     MenuRow(Icons.Outlined.ClosedCaption, "Phụ đề", caption?.label ?: "Tắt") { page = Page.CAPTIONS }
@@ -147,8 +155,9 @@ fun PlayerSettingsSheet(
                     val heights = now.availableHeights.ifEmpty { listOf(1080, 720, 480, 360, 240, 144) }
                     heights.forEach { h ->
                         CheckRow(
-                            "${h}p" + if (h >= 720) " HD" else "",
-                            null,
+                            qualityLabel(h),
+                            // 2K/4K chỉ hiện khi máy giải mã phần cứng được; vẫn nhắc trước khi chọn.
+                            if (h > 1080) "Tốn nhiều dữ liệu, máy có thể nóng hơn" else null,
                             checked = settings.quality == QualityMode.ADVANCED && settings.fixedHeight == h,
                         ) {
                             PlaybackController.setQuality(QualityMode.ADVANCED, h)

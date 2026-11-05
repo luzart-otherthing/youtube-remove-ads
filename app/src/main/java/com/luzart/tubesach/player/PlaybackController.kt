@@ -16,7 +16,9 @@ import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.HttpDataSource
+import androidx.media3.exoplayer.ExoPlaybackException
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.analytics.AnalyticsListener
 import androidx.media3.exoplayer.source.MediaSource
 import com.luzart.tubesach.data.FeedEntry
 import com.luzart.tubesach.data.LocalStore
@@ -27,6 +29,7 @@ import com.luzart.tubesach.data.YouTubeRepository
 import com.luzart.tubesach.innertube.CaptionTrack
 import com.luzart.tubesach.innertube.InnerTubeException
 import com.luzart.tubesach.innertube.PlayerData
+import com.luzart.tubesach.innertube.Vp9Policy
 import com.luzart.tubesach.innertube.WatchTracker
 import com.luzart.tubesach.net.NetworkMonitor
 import com.luzart.tubesach.sponsor.Dislikes
@@ -183,7 +186,7 @@ object PlaybackController {
         suspend fun watch(videoId: String): WatchInfo
         suspend fun relatedMore(token: String): com.luzart.tubesach.data.FeedPage
         suspend fun streamInfo(url: String): org.schabi.newpipe.extractor.stream.StreamInfo
-        fun buildDirect(data: PlayerData, metadata: MediaMetadata, subtitle: MediaItem.SubtitleConfiguration?): MediaSource
+        fun buildDirect(data: PlayerData, metadata: MediaMetadata, subtitle: MediaItem.SubtitleConfiguration?, vp9: Vp9Policy?): MediaSource
         fun createPlayer(context: Context): ExoPlayer? = null
     }
 
@@ -192,8 +195,8 @@ object PlaybackController {
         override suspend fun watch(videoId: String) = YouTubeRepository.watch(videoId)
         override suspend fun relatedMore(token: String) = YouTubeRepository.relatedMore(token)
         override suspend fun streamInfo(url: String) = YouTubeRepository.streamInfo(url)
-        override fun buildDirect(data: PlayerData, metadata: MediaMetadata, subtitle: MediaItem.SubtitleConfiguration?) =
-            sources.buildDirect(data, metadata, subtitle)
+        override fun buildDirect(data: PlayerData, metadata: MediaMetadata, subtitle: MediaItem.SubtitleConfiguration?, vp9: Vp9Policy?) =
+            sources.buildDirect(data, metadata, subtitle, vp9)
     }
 
     @androidx.annotation.VisibleForTesting
@@ -230,6 +233,7 @@ object PlaybackController {
     private fun createPlayer(): ExoPlayer {
         backend.createPlayer(appContext)?.let { p ->
             p.addListener(playerListener)
+            p.addAnalyticsListener(droppedFramesListener)
             return p
         }
         val p = ExoPlayer.Builder(appContext)
@@ -246,7 +250,88 @@ object PlaybackController {
             .setSeekForwardIncrementMs(SEEK_MS)
             .build()
         p.addListener(playerListener)
+        p.addAnalyticsListener(droppedFramesListener)
         return p
+    }
+
+    // ---------------------------------------------------------------- VP9
+
+    /**
+     * VP9 dùng được cho video này không: bật trong Cài đặt, máy chưa bị đánh dấu "phát VP9 không ổn",
+     * và (kiểm tra từng độ phân giải) có bộ giải mã PHẦN CỨNG xử lý được. null = chỉ dùng H.264.
+     */
+    private fun vp9Policy(): Vp9Policy? {
+        if (!store.settings.value.preferVp9 || store.vp9Broken.value) return null
+        return { f -> VideoCodecSupport.vp9Supported(f.width, f.height, f.fps) }
+    }
+
+    /**
+     * Công tắc "Tiết kiệm dữ liệu (VP9)" trong Cài đặt. Bật lại sau khi app đã tự tắt (máy phát không mượt)
+     * thì xoá dấu đó để thử lại. Áp dụng ngay cho video đang xem.
+     */
+    fun setVp9Enabled(on: Boolean) {
+        store.updateSettings { it.copy(preferVp9 = on) }
+        if (on) store.setVp9Broken(false)
+        reloadCodecs()
+    }
+
+    /** Máy có giải mã VP9 phần cứng được (ít nhất 1080p) – để hiện công tắc trong Cài đặt. */
+    fun vp9Available(): Boolean = VideoCodecSupport.vp9Available()
+
+    /** Đang phát luồng VP9. */
+    private fun playingVp9(): Boolean = _player?.videoFormat?.sampleMimeType == MimeTypes.VIDEO_VP9
+
+    /** Thời điểm (elapsedRealtime) lần gần nhất VP9 rơi nhiều khung hình. */
+    private var lastHeavyDropAt = 0L
+
+    /**
+     * Theo dõi khung hình bị rơi (giật). ExoPlayer báo mỗi khi rơi đủ 50 khung hình, kèm thời gian rơi.
+     * VP9 rơi ≥ 50 khung trong ≤ 10 giây, HAI lần cách nhau không quá 1 phút → máy giải mã VP9 không nổi
+     * → chuyển về H.264. (Một lần lẻ có thể chỉ do máy bận chốc lát, không tính.)
+     */
+    private val droppedFramesListener = object : AnalyticsListener {
+        override fun onDroppedVideoFrames(eventTime: AnalyticsListener.EventTime, droppedFrames: Int, elapsedMs: Long) {
+            if (!playingVp9() || droppedFrames < DROP_LIMIT || elapsedMs > DROP_WINDOW_MS) return
+            val now = SystemClock.elapsedRealtime()
+            if (lastHeavyDropAt > 0 && now - lastHeavyDropAt <= 60_000) {
+                lastHeavyDropAt = 0
+                disableVp9()
+            } else {
+                lastHeavyDropAt = now
+            }
+        }
+    }
+
+    /**
+     * Máy phát VP9 không ổn → nhớ lại (lần sau luôn dùng H.264) và dựng lại luồng ngay tại chỗ đang xem.
+     * Người xem không phải làm gì.
+     */
+    private fun disableVp9() {
+        if (store.vp9Broken.value) return
+        store.setVp9Broken(true)
+        reloadCodecs()
+    }
+
+    /**
+     * Dựng lại luồng của video đang xem theo cài đặt VP9 hiện tại, giữ nguyên chỗ đang xem và trạng thái phát.
+     * Gọi khi bật/tắt "Tiết kiệm dữ liệu (VP9)" hoặc khi tự chuyển về H.264.
+     */
+    fun reloadCodecs() {
+        val p = _player ?: return
+        val data = currentData ?: return
+        val now = _nowPlaying.value ?: return
+        if (usingFallback || data.isLive) return
+        queued = null // setMediaSource thay cả danh sách phát → xếp lại video kế tiếp sau
+        retryJob?.cancel()
+        lastHeavyDropAt = 0L
+        val vp9 = vp9Policy()
+        _nowPlaying.value = now.copy(availableHeights = data.availableHeights(vp9))
+        val pos = p.currentPosition
+        val playing = p.playWhenReady
+        applyQuality()
+        p.setMediaSource(backend.buildDirect(data, metadataOf(now.video), subtitleConfig(), vp9), pos)
+        p.prepare()
+        p.playWhenReady = playing
     }
 
     private val playerListener = object : Player.Listener {
@@ -275,6 +360,12 @@ object PlaybackController {
         }
 
         override fun onPlayerError(error: PlaybackException) {
+            // Bộ giải mã VP9 lỗi (khởi tạo hỏng, giải mã hỏng, không đủ sức…) → chuyển về H.264 tại chỗ.
+            val rendererFormat = (error as? ExoPlaybackException)?.rendererFormat
+            if (error.errorCode in DECODER_ERRORS && rendererFormat?.sampleMimeType == MimeTypes.VIDEO_VP9 && !store.vp9Broken.value) {
+                disableVp9()
+                return
+            }
             val cause = error.cause
             val forbidden = cause is HttpDataSource.InvalidResponseCodeException &&
                 (cause.responseCode == 403 || cause.responseCode == 410)
@@ -354,6 +445,7 @@ object PlaybackController {
         val durationMs = video.durationSec * 1000
         val start = if (saved > 10_000 && (durationMs <= 0 || saved < durationMs - 15_000)) saved else 0L
         playedIds.add(video.id)
+        lastHeavyDropAt = 0L
         skippedUuids.clear()
         _segments.value = emptyList()
         _caption.value = null
@@ -449,12 +541,12 @@ object PlaybackController {
                         _nowPlaying.value = _nowPlaying.value?.copy(
                             video = item,
                             captions = data.captions,
-                            availableHeights = data.availableHeights,
+                            availableHeights = data.availableHeights(vp9Policy()),
                         )
                         if (fresh) autoSelectCaption(data.captions)
                         tracker.begin(data, startPositionMs)
                         trackForAccount(data.videoId)
-                        backend.buildDirect(data, metadataOf(item), subtitleConfig())
+                        backend.buildDirect(data, metadataOf(item), subtitleConfig(), vp9Policy())
                     } else null
                 } else null
 
@@ -706,19 +798,39 @@ object PlaybackController {
         // "360p", "720p"… là cạnh NGẮN của khung hình. Video dọc (Shorts) 720p = 720×1280,
         // nên giới hạn phải đặt lên chiều rộng – nếu đặt lên chiều cao thì Shorts bị chọn 144p, rất mờ.
         val portrait = currentData?.isPortrait ?: (_nowPlaying.value?.isShort == true)
+        val vp9 = currentData?.hasVp9(vp9Policy()) == true
         val b = p.trackSelectionParameters.buildUpon()
             .clearVideoSizeConstraints()
             .setMinVideoSize(0, 0)
             .setForceHighestSupportedBitrate(false)
+            .setViewportSizeToPhysicalDisplaySize(appContext, true)
+            // Có VP9 (máy giải mã phần cứng được) → ưu tiên VP9: cùng độ nét mà tốn ít dữ liệu hơn nhiều.
+            .setPreferredVideoMimeTypes(*(if (vp9) arrayOf(MimeTypes.VIDEO_VP9, MimeTypes.VIDEO_H264) else arrayOf(MimeTypes.VIDEO_H264)))
         fun max(q: Int) = if (portrait) b.setMaxVideoSize(q, Int.MAX_VALUE) else b.setMaxVideoSize(Int.MAX_VALUE, q)
         fun min(q: Int) = if (portrait) b.setMinVideoSize(q, 0) else b.setMinVideoSize(0, q)
         when (s.quality) {
-            QualityMode.AUTO -> Unit
-            QualityMode.HIGHER -> b.setForceHighestSupportedBitrate(true)
+            // 2K/4K chỉ khi người xem tự chọn trong "Nâng cao"; các chế độ khác tối đa 1080p như trước.
+            QualityMode.AUTO -> max(1080)
+            QualityMode.HIGHER -> { b.setForceHighestSupportedBitrate(true); max(1080) }
             QualityMode.DATA_SAVER -> max(360)
-            QualityMode.ADVANCED -> { max(s.fixedHeight); min(s.fixedHeight) }
+            QualityMode.ADVANCED -> {
+                val q = fixedQualityFor(s.fixedHeight)
+                max(q)
+                min(q)
+                b.clearViewportSizeConstraints() // người xem đã chọn rõ độ phân giải → không giới hạn theo màn hình
+            }
         }
         p.trackSelectionParameters = b.build()
+    }
+
+    /**
+     * Độ phân giải "Nâng cao" thực tế cho video này: nếu video (hoặc máy) không có mức đã chọn,
+     * dùng mức cao nhất có sẵn không vượt quá nó (ví dụ chọn 4K nhưng video chỉ có 1080p → 1080p).
+     */
+    private fun fixedQualityFor(wanted: Int): Int {
+        val heights = _nowPlaying.value?.availableHeights.orEmpty()
+        if (heights.isEmpty() || wanted in heights) return wanted
+        return heights.filter { it <= wanted }.maxOrNull() ?: heights.min()
     }
 
     fun setQuality(mode: QualityMode, height: Int? = null) {
@@ -771,7 +883,7 @@ object PlaybackController {
         val pos = p.currentPosition
         val playing = p.playWhenReady
         queued = null // setMediaSource thay cả danh sách phát → xếp lại video kế tiếp sau
-        p.setMediaSource(backend.buildDirect(data, metadataOf(item), subtitleConfig()), pos)
+        p.setMediaSource(backend.buildDirect(data, metadataOf(item), subtitleConfig(), vp9Policy()), pos)
         p.prepare()
         p.playWhenReady = playing
     }
@@ -955,7 +1067,7 @@ object PlaybackController {
             if (usingFallback || p.currentMediaItem?.mediaId != current.video.id || queued != null) return@launch
             val item = merge(next, data)
             val caption = captionFor(data.captions)
-            val source = runCatching { backend.buildDirect(data, metadataOf(item), subtitleConfig(caption)) }.getOrNull()
+            val source = runCatching { backend.buildDirect(data, metadataOf(item), subtitleConfig(caption), vp9Policy()) }.getOrNull()
                 ?: return@launch
             p.addMediaSource(p.currentMediaItemIndex + 1, source)
             queued = Queued(item, data, caption)
@@ -1000,7 +1112,7 @@ object PlaybackController {
         _nowPlaying.value = NowPlaying(
             q.video,
             captions = q.data.captions,
-            availableHeights = q.data.availableHeights,
+            availableHeights = q.data.availableHeights(vp9Policy()),
         )
         tracker.begin(q.data, 0)
         trackForAccount(q.data.videoId)
@@ -1035,4 +1147,9 @@ object PlaybackController {
     const val SEEK_MS = 10_000L
     private const val MAX_RETRIES = 3
     private const val MAX_AUTO_SKIPS = 3
+    private const val DROP_LIMIT = 50
+    private const val DROP_WINDOW_MS = 10_000L
+
+    /** Mã lỗi nhóm 4xxx của Media3: lỗi bộ giải mã (khởi tạo, giải mã, vượt khả năng, không hỗ trợ…). */
+    private val DECODER_ERRORS = 4001..4999
 }

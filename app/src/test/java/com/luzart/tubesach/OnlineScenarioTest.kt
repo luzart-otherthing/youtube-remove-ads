@@ -55,8 +55,8 @@ class OnlineScenarioTest {
                 override suspend fun watch(videoId: String) = YouTubeRepository.watch(videoId)
                 override suspend fun relatedMore(token: String) = YouTubeRepository.relatedMore(token)
                 override suspend fun streamInfo(url: String) = YouTubeRepository.streamInfo(url)
-                override fun buildDirect(data: PlayerData, metadata: MediaMetadata, subtitle: MediaItem.SubtitleConfiguration?) =
-                    sources.buildDirect(data, metadata, subtitle)
+                override fun buildDirect(data: PlayerData, metadata: MediaMetadata, subtitle: MediaItem.SubtitleConfiguration?, vp9: com.luzart.tubesach.innertube.Vp9Policy?) =
+                    sources.buildDirect(data, metadata, subtitle, vp9)
                 override fun createPlayer(context: Context): ExoPlayer = TestExoPlayerBuilder(context).setClock(clock).build()
             },
         )
