@@ -27,12 +27,13 @@ final class ImageLoader {
 struct RemoteImage: View {
     let url: String?
     var contentMode: ContentMode = .fill
+    var placeholder = Color(.secondarySystemBackground)
 
     @State private var image: UIImage?
 
     var body: some View {
         ZStack {
-            Color(.secondarySystemBackground)
+            placeholder
             if let image {
                 Image(uiImage: image)
                     .resizable()

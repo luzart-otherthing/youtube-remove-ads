@@ -46,7 +46,8 @@ struct WatchView: View {
                     playerArea
                     ScrollView {
                         info
-                        LazyVStack(alignment: .leading, spacing: 24) {
+                        // iPhone: 1 cột; iPad dọc: 2 cột.
+                        LazyVGrid(columns: [GridItem(.adaptive(minimum: 320), spacing: 16, alignment: .top)], spacing: 24) {
                             ForEach(relatedVideos) { v in
                                 VideoCard(video: v)
                             }

@@ -86,6 +86,16 @@ Trình phát là trình phát gốc của iOS nên có sẵn:
 - hình trong hình khi về màn hình chính;
 - phát tiếp khi tắt màn hình, có nút điều khiển trên màn hình khoá và tai nghe.
 
+| Trang chủ | Xem video | Tìm kiếm | Kênh | Giao diện tối |
+|---|---|---|---|---|
+| ![](docs/screenshots/ios_iphone_01_trang_chu.jpg) | ![](docs/screenshots/ios_iphone_02_xem_video.jpg) | ![](docs/screenshots/ios_iphone_03_tim_kiem.jpg) | ![](docs/screenshots/ios_iphone_05_kenh.jpg) | ![](docs/screenshots/ios_iphone_07_xem_video_toi.jpg) |
+
+| iPad – trang chủ | iPad – xem video | Bạn |
+|---|---|---|
+| ![](docs/screenshots/ios_ipad_01_trang_chu.jpg) | ![](docs/screenshots/ios_ipad_02_xem_video.jpg) | ![](docs/screenshots/ios_iphone_06_ban.jpg) |
+
+> Ảnh chụp tự động trên iPhone 16 và iPad Pro giả lập (GitHub Actions, commit có `[screenshots]`), dữ liệu YouTube thật.
+
 Trên iPad, khi xoay ngang, video liên quan nằm bên phải. Trên iPhone, khi xoay ngang, video tự phóng to hết màn hình. Yêu cầu iOS 16 trở lên (iPhone 8 trở về sau).
 
 ### Vì sao không có trên App Store?

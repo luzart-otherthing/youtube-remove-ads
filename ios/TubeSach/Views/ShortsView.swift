@@ -57,6 +57,12 @@ final class ShortsPlayer: ObservableObject {
         }
     }
 
+    func retry() {
+        guard let id = currentId else { return }
+        currentId = nil
+        show(id)
+    }
+
     func togglePause() {
         paused.toggle()
         if paused { avPlayer.pause() } else { avPlayer.play() }
@@ -149,13 +155,22 @@ struct ShortPage: View {
             if isPlayingThis && player.info != nil {
                 PlayerLayerView(player: player.avPlayer)
             } else {
-                RemoteImage(url: short.thumbnail, contentMode: .fit)
+                RemoteImage(url: short.thumbnail, contentMode: .fit, placeholder: .black)
             }
             if isPlayingThis && player.loading {
                 ProgressView().tint(.white).scaleEffect(1.5)
             }
             if isPlayingThis, let e = player.error {
-                Text(e).foregroundColor(.white).padding()
+                VStack(spacing: 12) {
+                    Text(e)
+                        .multilineTextAlignment(.center)
+                    Button("Thử lại") { player.retry() }
+                        .buttonStyle(.borderedProminent)
+                }
+                .foregroundColor(.white)
+                .padding(20)
+                .background(Color.black.opacity(0.75), in: RoundedRectangle(cornerRadius: 16))
+                .padding(32)
             }
             if isPlayingThis && player.paused {
                 Image(systemName: "play.fill")
