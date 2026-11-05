@@ -412,10 +412,16 @@ class PlayerScreen(carContext: CarContext, private val session: TubeCarSession) 
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 session.renderer.onTap = { PlaybackController.togglePlayPause() }
                 try {
-                    combine(session.gate.state, PlaybackController.isPlaying, PlaybackController.nowPlaying) { s, playing, now ->
-                        Triple(s, playing, now?.video?.id)
-                    }.distinctUntilChanged().collect { (state, _, _) ->
-                        session.renderer.setMode(modeFor(state))
+                    val store = App.of(carContext).store
+                    combine(
+                        session.gate.state,
+                        PlaybackController.isPlaying,
+                        PlaybackController.nowPlaying,
+                        store.settings,
+                    ) { s, playing, now, settings ->
+                        listOf(s, playing, now?.video?.id, settings.carVideoWhileDriving)
+                    }.distinctUntilChanged().collect {
+                        session.renderer.setMode(modeFor(session.gate.state.value, store.settings.value.carVideoWhileDriving))
                         invalidate()
                     }
                 } finally {
@@ -441,8 +447,11 @@ class PlayerScreen(carContext: CarContext, private val session: TubeCarSession) 
                     .setOnClickListener { PlaybackController.next() }.build(),
             )
         val state = session.gate.state.value
-        val askPermission = state == DriveState.NO_PERMISSION ||
-            (state == DriveState.UNAVAILABLE && session.gate.missingPermission())
+        val passengerMode = App.of(carContext).store.settings.value.carVideoWhileDriving
+        val askPermission = !passengerMode && (
+            state == DriveState.NO_PERMISSION ||
+                (state == DriveState.UNAVAILABLE && session.gate.missingPermission())
+            )
         if (askPermission) {
             strip.addAction(Action.Builder().setTitle("Bật hình").setOnClickListener { session.gate.requestPermission { invalidate() } }.build())
         } else {
@@ -473,9 +482,15 @@ class PlayerScreen(carContext: CarContext, private val session: TubeCarSession) 
     companion object {
         const val MARKER = "player"
 
-        fun modeFor(state: DriveState): VideoSurfaceRenderer.Mode = when (state) {
+        /**
+         * [whileDriving] = người dùng đã bật "Cho hành khách xem hình khi xe đang chạy" trên điện thoại:
+         * luôn hiện hình. Mặc định chỉ hiện hình khi xe đứng yên.
+         */
+        fun modeFor(state: DriveState, whileDriving: Boolean = false): VideoSurfaceRenderer.Mode = if (whileDriving) {
+            VideoSurfaceRenderer.Mode.Video
+        } else when (state) {
             DriveState.PARKED -> VideoSurfaceRenderer.Mode.Video
-            DriveState.MOVING -> VideoSurfaceRenderer.Mode.AudioOnly("Xe đang chạy nên chỉ phát tiếng.\nDừng xe để xem hình.")
+            DriveState.MOVING -> VideoSurfaceRenderer.Mode.AudioOnly("Xe đang chạy nên chỉ phát tiếng.\nDừng xe để xem hình (hoặc bật “Cho hành khách xem”\ntrong Cài đặt của Tube Sạch trên điện thoại).")
             DriveState.UNKNOWN -> VideoSurfaceRenderer.Mode.AudioOnly("Đang kiểm tra xe đang đỗ…")
             DriveState.NO_PERMISSION -> VideoSurfaceRenderer.Mode.AudioOnly("Bấm “Bật hình” rồi cho phép đọc tốc độ xe và vị trí\n(để biết xe đang đỗ) thì mới xem được hình.")
             DriveState.UNAVAILABLE -> VideoSurfaceRenderer.Mode.AudioOnly("Chưa đọc được tốc độ xe nên chưa bật hình.\nVẫn nghe được tiếng.")

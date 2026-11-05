@@ -295,6 +295,16 @@ fun SettingsScreen(vm: AppViewModel, pipSupported: Boolean) {
             YtDivider()
 
             AndroidAutoSection()
+            if (com.luzart.tubesach.update.PlayInstaller.supported) {
+                ToggleRow(
+                    "Cho hành khách xem hình khi xe đang chạy",
+                    if (s.carVideoWhileDriving) "Đang bật: màn hình ô tô luôn hiện hình. Người lái đừng nhìn video."
+                    else "Đang tắt: xe chạy thì màn hình ô tô chỉ phát tiếng, xe dừng thì hiện hình.",
+                    s.carVideoWhileDriving,
+                ) { on ->
+                    if (on) dialog = "carDriving" else vm.store.updateSettings { it.copy(carVideoWhileDriving = false) }
+                }
+            }
             YtDivider()
 
             Section("Giới thiệu")
@@ -325,6 +335,12 @@ fun SettingsScreen(vm: AppViewModel, pipSupported: Boolean) {
             }
         }
         "reset" -> ConfirmDialog("Xoá dữ liệu đề xuất?", "Trang chủ sẽ trống cho đến khi bạn xem thêm video.", { dialog = null }) { vm.resetRecommendations() }
+        "carDriving" -> ConfirmDialog(
+            "Hiện hình khi xe đang chạy?",
+            "Màn hình ô tô sẽ hiện video cả khi xe đang chạy để hành khách xem. Màn hình nằm trong tầm mắt người lái: người lái tuyệt đối không nhìn video khi đang lái. Có thể tắt lại bất cứ lúc nào ở đây.",
+            { dialog = null },
+            confirmLabel = "BẬT",
+        ) { vm.store.updateSettings { it.copy(carVideoWhileDriving = true) } }
         "history" -> ConfirmDialog("Xoá nhật ký xem?", "Danh sách video đã xem trên máy này sẽ bị xoá.", { dialog = null }) { vm.store.clearHistory() }
     }
 }
@@ -447,12 +463,12 @@ private fun ChoiceDialog(title: String, options: List<String>, selected: Int, on
 }
 
 @Composable
-private fun ConfirmDialog(title: String, text: String, onDismiss: () -> Unit, onConfirm: () -> Unit) {
+private fun ConfirmDialog(title: String, text: String, onDismiss: () -> Unit, confirmLabel: String = "XOÁ", onConfirm: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(title) },
         text = { Text(text) },
-        confirmButton = { TextButton(onClick = { onConfirm(); onDismiss() }) { Text("XOÁ") } },
+        confirmButton = { TextButton(onClick = { onConfirm(); onDismiss() }) { Text(confirmLabel) } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("HUỶ") } },
     )
 }

@@ -77,6 +77,17 @@ class CarAppTest {
         }
     }
 
+    @Test
+    fun passengerModeShowsVideoWhileDrivingOnlyWhenTurnedOn() {
+        assertFalse(app.store.settings.value.carVideoWhileDriving) // mặc định tắt
+        DriveState.entries.forEach { s ->
+            assertEquals(s.name, VideoSurfaceRenderer.Mode.Video, PlayerScreen.modeFor(s, whileDriving = true))
+        }
+        app.store.updateSettings { it.copy(carVideoWhileDriving = true) }
+        assertTrue(com.luzart.tubesach.data.LocalStore(app).settings.value.carVideoWhileDriving) // được lưu lại
+        app.store.updateSettings { it.copy(carVideoWhileDriving = false) }
+    }
+
     // ---------------------------------------------------------------- Màn hình trên xe
 
     private fun session(): Pair<TubeCarSession, TestCarContext> {

@@ -39,6 +39,8 @@ data class Settings(
     /** Ngôn ngữ phụ đề tự bật (rỗng = tắt). */
     val captionLanguage: String = "",
     val doubleTapSeekSec: Int = 10,
+    /** Màn hình ô tô (chế độ bản đồ) vẫn hiện hình khi xe đang chạy – cho hành khách. Mặc định tắt. */
+    val carVideoWhileDriving: Boolean = false,
 )
 
 /** Lưu dữ liệu trên máy (không gửi đi đâu): cài đặt, lịch sử, kênh đăng ký, video đã lưu. */
@@ -91,6 +93,7 @@ class LocalStore(context: Context) {
             .putBoolean("personalize", s.personalize)
             .putString("captionLanguage", s.captionLanguage)
             .putInt("doubleTapSeekSec", s.doubleTapSeekSec)
+            .putBoolean("carVideoWhileDriving", s.carVideoWhileDriving)
             .apply()
     }
 
@@ -111,6 +114,7 @@ class LocalStore(context: Context) {
             personalize = prefs.getBoolean("personalize", d.personalize),
             captionLanguage = prefs.getString("captionLanguage", d.captionLanguage).orEmpty(),
             doubleTapSeekSec = prefs.getInt("doubleTapSeekSec", d.doubleTapSeekSec),
+            carVideoWhileDriving = prefs.getBoolean("carVideoWhileDriving", d.carVideoWhileDriving),
         )
     }
 
